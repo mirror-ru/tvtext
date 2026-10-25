@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit
 
 object MobileCoreTests {
     @JvmStatic fun main(args: Array<String>) {
+        ConnectionCatalogTests.run()
         val sample="Привет с телефона 😀 中文 & %\nВторая строка"
         val id=UUID.randomUUID().toString()
         check(Protocol.readRequest(ByteArrayInputStream(Wire.request(3,"a".repeat(64),id,sample))) == Protocol.Request(3,"a".repeat(64),id,sample))

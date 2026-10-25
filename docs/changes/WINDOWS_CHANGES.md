@@ -1,5 +1,35 @@
 # Windows EXE changes
 
+## 25 October 2026 — persistence warnings and reliable release checks
+
+- Selection, pairing and verified address updates use one save path. A failed disk write keeps the connection usable in the session and adds a localized per-TV warning; clearing ordinary status cannot silently erase it. Successful saving or unpairing clears the warning.
+- Address recovery distinguishes an address saved to disk from one available only in the current session. Failed sends are never automatically replayed.
+- Added a real storage-failure regression checking preserved disk contents, session address, draft and Send availability, warning lifetime, and a subsequent successful write.
+- Off-screen focus checks verify the app's logical active control, selection and (when owned) native focus with a bounded wait, without forcing focus from the test.
+- Test exceptions are written to stderr with a nonzero exit code. The save/UI regression runs in its own process so it cannot install a WinForms synchronization context before synchronous network checks.
+- TLS fixture success now requires both exit code zero and the final assertion marker. Retain the live process handle; a PASS line no longer suppresses a failing process. Exit-code fixtures test PASS followed by exit 7.
+- Added `prepare-release.ps1` for local builds, pinned APK-certificate/version/SDK/alignment checks, core/full test policies, a clean four-asset bundle, SHA-256 and an explicit verification report. Existing directories are not overwritten; nothing is uploaded.
+- Final verified files retain version 2.0.8.0 as requested.
+- Final Windows/TLS/UI suite passed: `build/test-76dac2cf484d4c7383b6073bea00aa8c`; the complete local release-preparation workflow also passed. EXE SHA-256: `87fd4ab56a580efde135fb4156d4bfd95de482111d7d05e8dffc4e1aaec60af5`.
+
+## 25 October 2026 — version 2.0.8 rebuild
+
+- Windows version is now `2.0.8.0`, generated from the shared `version.json`.
+- Output files are `outputs/TVText-2.0.8/TVText-2.0.8.exe` and `TVText-2.0.8.exe.config`.
+- The build includes the previously verified device-catalog and pairing-dialog refactoring.
+- EXE SHA-256: `9AFB2007B5A2399B416D3838D9D716C5DA773D3BE140B651F8D410B766349408`.
+- Full Windows/TLS/UI checks passed: `build/test-59c44d4fa721411da60d486d20b93839`. An initial off-screen focus assertion was rechecked successfully in isolation and in the complete rerun; no dialog code changes were needed.
+
+## 25 October 2026 — local build and maintainability improvements
+
+- Windows-only builds now validate only the C# compiler and do not require Android SDK/JDK/Kotlin or create APK signing material.
+- Windows version attributes and manifest identity are generated from `version.json` below the ignored build directory.
+- Extracted device-list construction, local-name presentation and active-profile lookup into `ConnectionCatalog`.
+- Moved the pairing dialog into its own source file; layout and input behavior are retained.
+- Added catalog tests for recipient stability, explicit removal and credential isolation, plus PowerShell regression checks for build dependencies and artifact matching.
+- These local changes follow the published 2.0.7 snapshot; release files are not replaced.
+- Verification: Windows/TLS/UI run passed at `build/test-d3b8b02c1bae4ed09161cb54ea516015`; final build-system checks passed in Windows PowerShell 5.1 at `build/build-tests-376474bedcd344f394e98b1dc5cf4e21`.
+
 ## 25 October 2026 — version 2.0.7 rebuild
 
 - Rebuilt the Windows client as version `2.0.7.0`.

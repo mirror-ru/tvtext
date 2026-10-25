@@ -34,6 +34,7 @@ captures/
 
 # Release binaries belong in GitHub Releases, not the source history
 *.apk
+*.apk.build.json
 *.aab
 *.exe
 *.dll

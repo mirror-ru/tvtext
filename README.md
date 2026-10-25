@@ -9,7 +9,7 @@ TVText sends text from a Windows PC or an Android phone/tablet to the active tex
 | Component | Source folder | Package or runtime | Purpose |
 | --- | --- | --- | --- |
 | TV receiver | `android-tv/` | `com.tvtext.app`, Android 9+ / target 34 | Receives text through the TV accessibility service and inserts it into the active field. |
-| Mobile sender | `android/` | `com.tvtext.mobile.app`, Android 9+ / target 34 | Finds TVs, pairs with a code, and sends text from a phone or tablet. |
+| Mobile sender | `android-mobile/` | `com.tvtext.mobile.app`, Android 9+ / target 34 | Finds TVs, pairs with a code, and sends text from a phone or tablet. |
 | Windows sender | `windows/` | .NET Framework 4.8, Windows Forms | Finds TVs, pairs with a code, and sends text from Windows. |
 
 The TV and mobile APKs use Kotlin and framework Views; the Windows application uses C#. The Android packages have different application IDs and can be installed together.
@@ -32,7 +32,7 @@ The TV and mobile APKs use Kotlin and framework Views; the Windows application u
 
 - Windows 10/11 with .NET Framework 4.8 for the EXE.
 - Android Studio with its JDK and Kotlin compiler.
-- Android SDK platform API 34 or newer and Android build-tools.
+- The Android/JVM tool versions pinned in `toolchain.json` for Android builds and tests.
 - A TV, PC, phone, or tablet on the same Wi-Fi network. Guest Wi-Fi, VPNs, and client isolation can block discovery.
 
 The project uses the Android command-line tools directly. Gradle and network downloads are not required by the build script.
@@ -47,11 +47,13 @@ Run PowerShell from this directory:
 
 Optional parameters are `-Jdk`, `-Kotlin`, `-Output`, and `-Target All|TV|Mobile|Windows`. The default output directory is `dist/`.
 
+`-Target Windows` requires no Android SDK, JDK, Kotlin or APK signing key. Application versions come from `version.json`; Android tool versions are checked against `toolchain.json`. See the [build guide](docs/building/BUILD.md) for setup and matching APK/device-test records.
+
 The build creates:
 
-- `TVText-TV-2.0.7.apk` for the TV;
-- `TVText-Mobile-2.0.7.apk` for phones and tablets;
-- `TVText-2.0.7.exe` and `TVText-2.0.7.exe.config` for Windows.
+- `TVText-TV-2.0.8.apk` for the TV;
+- `TVText-Mobile-2.0.8.apk` for phones and tablets;
+- `TVText-2.0.8.exe` and `TVText-2.0.8.exe.config` for Windows.
 
 The first build creates an APK signing key in `.local/`. Keep `signing.p12` and its password outside source control and back them up privately. A fresh clone without that key creates a different signing identity, so an already installed APK must be removed before installing that independent build.
 
@@ -68,7 +70,7 @@ For the real Android UI/instrumentation suite, pass an explicitly named isolated
 ```powershell
 .\test-mobile.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
-  -AppApk '.\dist\TVText-Mobile-2.0.7.apk'
+  -AppApk '.\dist\TVText-Mobile-2.0.8.apk'
 ```
 
 Test sources are grouped by target: `tests/android-tv/` contains TV engine and accessibility-fixture checks, `tests/android/` contains phone/tablet checks, and `tests/windows/` contains Windows client and layout checks. The scripts use local TLS fixtures on `127.0.0.1`; they do not use saved TV credentials or an external network.
@@ -93,7 +95,7 @@ The TV listens on TCP 45831 over IPv4. The receiver advertises and accepts IPv4 
 
 ```text
 android-tv/       TV receiver
-android/          phone/tablet sender
+android-mobile/   phone/tablet sender
 windows/          Windows sender
 docs/images/      README screenshots
 docs/changes/     platform change logs
@@ -102,16 +104,21 @@ docs/testing/     test documentation
 tests/android-tv/ TV engine and accessibility fixture tests
 tests/android/    phone/tablet tests
 tests/windows/    Windows client and layout tests
+tests/tooling/      build and artifact consistency checks
+scripts/          shared build/test helpers
+version.json      application version and Android version code
+toolchain.json    pinned Android/JVM tools
 build.ps1         build all or one target
 test.ps1          Windows/TV tests
 test-mobile.ps1   mobile JVM and device tests
+test-tv-ui.ps1    TV device tests
 ```
 
 Project and user documentation: [Russian README](README.ru.md), [user guide](docs/guides/USER_GUIDE.md), [Russian user guide](docs/guides/USER_GUIDE.ru.md), [test report](docs/testing/TESTS.md), and [Russian test report](docs/testing/TESTS.ru.md). Platform change logs are in `docs/changes/`.
 
 ## GitHub and releases
 
-Use this directory as the repository root. `.gitignore` excludes build output, emulator state, generated test results, signing material, and release binaries. Keep APK and EXE files in a GitHub Release rather than source commits. The Windows 2.0.7 release must keep `TVText-2.0.7.exe.config` beside the EXE. The source is released under the MIT License in `LICENSE`.
+Use this directory as the repository root. `.gitignore` excludes build output, emulator state, generated test results, signing material, and release binaries. Keep APK and EXE files in a GitHub Release rather than source commits. The Windows 2.0.8 release must keep `TVText-2.0.8.exe.config` beside the EXE. The source is released under the MIT License in `LICENSE`.
 
 ## Known limits
 

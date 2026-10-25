@@ -5,7 +5,6 @@ import android.accessibilityservice.InputMethod
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.PersistableBundle
@@ -49,7 +48,6 @@ object Api33InputBridge {
 /** API 28-32 fallback. It uses only public AccessibilityNodeInfo actions. */
 object LegacyInputBridge {
     private val paste = AccessibilityNodeInfo.AccessibilityAction.ACTION_PASTE.id
-    private val setText = AccessibilityNodeInfo.AccessibilityAction.ACTION_SET_TEXT.id
 
     // AccessibilityNodeInfo.recycle() is deprecated on newer SDKs but remains
     // required for the Android 9-12 compatibility path.
@@ -89,7 +87,7 @@ object LegacyInputBridge {
     private fun ownsClipboard(write: ClipboardWrite) =
         write.manager.primaryClip?.description?.extras?.getString(clipboardMarker) == write.marker
 
-    private fun prepareClipboard(service: AccessibilityService, text: String): ClipboardWrite {
+    @Synchronized private fun prepareClipboard(service: AccessibilityService, text: String): ClipboardWrite {
         val clipboard = service.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         // Consecutive inserts share the original clipboard, never the text of
         // the previous insert. An intervening user copy starts a new session.
@@ -106,10 +104,10 @@ object LegacyInputBridge {
         return write
     }
 
-    private fun restoreClipboard(write: ClipboardWrite, delayMillis: Long) {
+    @Synchronized private fun restoreClipboard(write: ClipboardWrite, delayMillis: Long) {
         val marker = write.marker
-        clipboardRestore = Runnable {
-            if (clipboardWrite !== write || write.marker != marker) return@Runnable
+        clipboardRestore = Runnable { synchronized(this) {
+            if (clipboardWrite !== write || write.marker != marker) return@synchronized
             try {
                 if (ownsClipboard(write)) {
                     if (write.original != null) write.manager.setPrimaryClip(write.original)
@@ -117,7 +115,7 @@ object LegacyInputBridge {
                 }
             } catch (_: Exception) { }
             finally { clipboardWrite = null; clipboardRestore = null }
-        }.also { clipboardHandler.postDelayed(it, delayMillis) }
+        } }.also { clipboardHandler.postDelayed(it, delayMillis) }
     }
 
     fun status(service: AccessibilityService): Protocol.Response {
@@ -125,7 +123,7 @@ object LegacyInputBridge {
         if (node == null) return Protocol.Response(Protocol.OK,
             "Подключено. Откройте поле ввода и клавиатуру на ТВ.", ready = false)
         val packageName = target(node, service)
-        val ready = packageName != null && (supports(node, paste) || supports(node, setText))
+        val ready = packageName != null && supports(node, paste)
         val response = Protocol.Response(Protocol.OK,
             if (ready) "Подключено" else "Поле не поддерживает вставку текста на этом ТВ.",
             ready = ready, target = packageName ?: "")
@@ -141,8 +139,19 @@ object LegacyInputBridge {
             release(node)
             return Protocol.Response(Protocol.NO_FIELD, "Откройте поле в нужном приложении на ТВ.")
         }
+        if (!allowed()) {
+            release(node)
+            return Protocol.Response(Protocol.AUTH, "Подключение отозвано на ТВ.")
+        }
+        // Some editors expose Paste only when the clipboard contains text.
+        // Populate it before refreshing the node's actions, including when the
+        // original clipboard is empty. Restore it even if Paste is unavailable.
+        val clipboard = try { prepareClipboard(service, text) } catch (_: Exception) {
+            release(node)
+            return Protocol.Response(Protocol.NO_FIELD, "Буфер обмена недоступен для вставки.", target = packageName)
+        }
+        try { node.refresh() } catch (_: Exception) { }
         if (supports(node, paste)) {
-            val clipboard = prepareClipboard(service, text)
             if (!allowed()) {
                 restoreClipboard(clipboard, 0)
                 release(node)
@@ -155,21 +164,10 @@ object LegacyInputBridge {
                 return if (allowed()) Protocol.Response(Protocol.OK, "Команда вставки передана полю на ТВ.", ready = true, target = packageName)
                 else Protocol.Response(Protocol.AUTH, "Подключение отозвано на ТВ.")
             }
-            restoreClipboard(clipboard, 0)
         }
-        if (supports(node, setText)) {
-            if (!allowed()) {
-                release(node)
-                return Protocol.Response(Protocol.AUTH, "Подключение отозвано на ТВ.")
-            }
-            val arguments = Bundle().apply {
-                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
-            }
-            if (node.performAction(setText, arguments)) {
-                release(node)
-                return Protocol.Response(Protocol.OK, "Текст передан полю на ТВ.", ready = true, target = packageName)
-            }
-        }
+        restoreClipboard(clipboard, 0)
+        // ACTION_SET_TEXT replaces the entire field. Never use it as a fallback
+        // for insertion: preserving existing text must not require reading it.
         release(node)
         return Protocol.Response(Protocol.NO_FIELD, "Это поле не поддерживает удалённую вставку текста.", target = packageName)
     }

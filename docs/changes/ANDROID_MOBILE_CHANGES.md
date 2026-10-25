@@ -1,5 +1,35 @@
 # Android phone/tablet changes
 
+## 25 October 2026 — encapsulated connection state
+
+- Made catalog maps/sets private. Activity now uses explicit restore/discovery/pair/forget/invalidate/endpoint/rename operations rather than mutating shared collections.
+- Discovery advertisements cannot introduce pairing credentials or local aliases. Discovery overlays keep each saved device's own credentials, and catalog snapshots do not expose its mutable storage.
+- Failed pair/forget/rename/endpoint writes leave the catalog unchanged. A send confirmed by the TV clears its original draft but no longer hides a subsequent endpoint-save error.
+- Expanded catalog regression checks for failed writes, rediscovery after unpair, aliases, state isolation and endpoint persistence. UI fixtures now use catalog operations.
+- Device test output reports the actual Android API; the compatibility runner distinguishes tested and unavailable versions.
+- Release metadata remains 2.0.8 / 28; final verified local artifacts are rebuilt as requested.
+- Final mobile JVM/TLS/UI checks passed on API 34: `build/mobile-test-b7b4a6e43aa94bc6ba66015b154191e4`. APK SHA-256: `50806ab26bc122dbf28cdb123bd50195d1a18b5a71b2ca45381959bfc5178e5d`.
+
+## 25 October 2026 — version 2.0.8 and android-mobile directory
+
+- Renamed the mobile application source directory from `android/` to `android-mobile/`, preserving all source/resource files.
+- Updated mobile build/test paths, source fingerprints and build-record target names to `android-mobile`.
+- Kept mobile test sources in `tests/android/`; the application ID remains `com.tvtext.mobile.app`, so the folder rename does not require reinstalling the app.
+- Application version is `2.0.8`, Android version code `28`; output is `outputs/TVText-2.0.8/TVText-Mobile-2.0.8.apk`.
+- APK SHA-256: `9EAA3AE9B3066E144C5C9C45D0B4615B8D27A58FA4E7E3D901DBD06650BEB58D`. The signing certificate matches 2.0.7.
+- Full mobile JVM/TLS/UI checks passed from the renamed source tree: `build/mobile-test-dc0392278e794e26882afc09217a0cc9`.
+
+## 25 October 2026 — local build and maintainability improvements
+
+- Moved application version/code to `version.json` and pinned Android/JVM tools in `toolchain.json`.
+- Device tests now require a matching APK build record, verify APK/JAR/source hashes, and never guess classes from the newest build directory.
+- Extracted device merging, pairing flags, local names and persistence commit rules into `ConnectionCatalog`. Failed writes leave the in-memory state unchanged.
+- Expanded lifecycle/discovery/background-operation code for readability; view layout and focus behavior are retained.
+- Added JVM regression tests for credential preservation after discovery, name retention after unpairing and failed-write isolation.
+- Made the scan/theme state-transition check independent of Instrumentation idle delays; native pointer checks remain for user interaction.
+- These local changes follow the published 2.0.7 snapshot; release files are not replaced.
+- Verification: final mobile JVM/TLS/UI run passed at `build/mobile-test-4ecee4aadab442dd889871ae36ac18e8`; APK/JAR/source records match.
+
 ## 25 October 2026 — version 2.0.7 rebuild
 
 - Rebuilt the mobile APK as version `2.0.7`, version code `27`, with package `com.tvtext.mobile.app`.

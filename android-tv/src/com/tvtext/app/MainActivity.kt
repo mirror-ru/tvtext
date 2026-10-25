@@ -38,7 +38,7 @@ import java.util.Locale
 
 class MainActivity : Activity() {
     companion object {
-        var keyboardTestOpen = false
+        @Volatile var keyboardTestOpen = false
             private set
     }
     private val handler = Handler(Looper.getMainLooper())
@@ -575,46 +575,20 @@ class MainActivity : Activity() {
         val listening = runtime.listening()
         val error = runtime.error
         val accepting = !accessibilityOff && !missing && listening && error.isEmpty()
-        val paired = runtime.engine.paired()
         val pin = if (!accessibilityOff) runtime.engine.pairingPin() else ""
         val hasPin = pin.isNotEmpty()
-        val color: Int
-        val title: String
-        val message: String
-        when {
-            accessibilityOff -> {
-                color = amber; title = tr("accessibility_off_title")
-                message = tr("accessibility_off_message")
-            }
-            missing -> {
-                color = amber; title = tr("status_caption")
-                message = tr("preparing_message")
-            }
-            error.isNotEmpty() -> {
-                color = amber; title = tr("reception_error_title")
-                message = tr("reception_error_message")
-            }
-            listening && hasPin -> {
-                color = accent; title = tr("pairing_title")
-                message = tr("pairing_hint")
-            }
-            listening && paired -> {
-                color = green; title = tr("status_caption")
-                message = tr("ready_to_pair_title")
-            }
-            listening -> {
-                color = green; title = tr("status_caption")
-                message = tr("ready_to_pair_title")
-            }
-            else -> {
-                color = amber; title = tr("status_caption")
-                message = tr("preparing_message")
-            }
+        val screen = ReceiverStatus.resolve(accessibilityOff, missing, listening, error.isNotEmpty(), hasPin)
+        val color = when (screen.tone) {
+            ReceiverStatus.Tone.ATTENTION -> amber
+            ReceiverStatus.Tone.PAIRING -> accent
+            ReceiverStatus.Tone.READY -> green
         }
+        val title = tr(screen.titleKey)
+        val message = tr(screen.messageKey)
         status.show(title); detail.show(message)
         status.showIf(title.isNotEmpty())
         detail.showIf(message.isNotEmpty())
-        val compactInfoState = !hasPin && !accessibilityOff && error.isEmpty()
+        val compactInfoState = screen.compact
         // Ready and working states mirror the TV name card: a small caption above a clear value.
         status.textSize = if (compactInfoState) 11f else 18f
         status.setTextColor(if (compactInfoState) muted else ink)

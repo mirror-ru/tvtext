@@ -1,5 +1,32 @@
 # Android TV changes
 
+## 25 October 2026 — safe legacy insertion and compatibility checks
+
+- Removed the Android 9–12 `ACTION_SET_TEXT` fallback, which could replace an entire nonempty field. Only Paste is used; missing/rejected Paste reports failure without reading the editor's text.
+- Refresh accessibility actions after preparing the temporary clipboard so editors can expose Paste even when the original clipboard was empty. Clipboard restoration still preserves intervening user copies.
+- Dispatch legacy accessibility requests on a dedicated bounded worker instead of blocking the target UI thread. Clipboard session state is synchronized with delayed restoration; request deadlines/revocation checks remain in force.
+- Added device checks for insertion in the middle of text, replacing only a selection, SetText-only fields and rejected Paste, alongside the existing rapid-insert/clipboard tests.
+- Added an explicit emulator compatibility matrix and a physical-device checklist in both documentation languages. Unavailable Android versions and physical TVs are not reported as passed.
+- Release metadata remains 2.0.8 / 28; the final verified build replaces the local 2.0.8 artifacts at the user's request.
+- Final TV instrumentation passed on API 34: `build/tv-ui-test-7219ba35c8b64a01a4f9519e6694a70b`. APK SHA-256: `1d06f82c581ec9d418dfadaaaff714796fed135ca202fc67dadf0fa049665dc4`.
+
+## 25 October 2026 — version 2.0.8 rebuild
+
+- Rebuilt the TV receiver using the shared `version.json`: version `2.0.8`, Android version code `28`.
+- Application ID remains `com.tvtext.app`; output is `outputs/TVText-2.0.8/TVText-TV-2.0.8.apk`.
+- The build includes the previously verified receiver-state refactoring.
+- APK SHA-256: `16B5933F7EAF7F613B1821CEB3D88BC5C8193F6B4EDA56B94CB74DAB365A0D3F`. The signing certificate matches 2.0.7.
+- Full TV UI checks passed: `build/tv-ui-test-6f56b92828d04e7f98f122f9889a46f7`.
+
+## 25 October 2026 — local build and maintainability improvements
+
+- Version and Android version code are injected from `version.json`; the Android/JVM build environment is pinned in `toolchain.json`.
+- Added APK/JAR build records and strict matching checks before device tests install an APK.
+- Extracted receiver setup/preparation/error/pairing/ready-state selection into `ReceiverStatus`, independent of Android views.
+- Added regression checks for state priority and compact-card behavior; the existing layouts, colors and button visibility are retained.
+- These local changes follow the published 2.0.7 snapshot; release files are not replaced.
+- Verification: final TV UI run passed at `build/tv-ui-test-989680553deb4e0cba4895a77ec03f36`; engine/status checks passed at `build/test-d3b8b02c1bae4ed09161cb54ea516015`.
+
 ## 25 October 2026 — version 2.0.7 rebuild
 
 - Rebuilt the TV APK as version `2.0.7`, version code `27`, with package `com.tvtext.app`.

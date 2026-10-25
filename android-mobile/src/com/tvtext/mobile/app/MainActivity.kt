@@ -37,10 +37,7 @@ class MainActivity : Activity() {
     private lateinit var store: ProfileStore
     private lateinit var discovery: TvDiscovery
     private lateinit var localized: Context
-    private val profiles = linkedMapOf<String, Tv>()
-    private val localNames = linkedMapOf<String, String>()
-    private val discovered = linkedMapOf<String, Tv>()
-    private val invalidKeys = hashSetOf<String>()
+    private val catalog = ConnectionCatalog { connections, names -> store.saveState(connections, names) }
     private var selectedId = ""
     private var language = "ru"
     private var darkMode = false
@@ -83,7 +80,7 @@ class MainActivity : Activity() {
         super.onCreate(state)
         language = getPreferences(MODE_PRIVATE).getString("language", "ru") ?: "ru"
         store = ProfileStore(this); discovery = TvDiscovery(this)
-        try { store.loadState().let { profiles.putAll(it.profiles); localNames.putAll(it.names) } }
+        try { store.loadState().let { catalog.restore(it.profiles, it.names) } }
         catch (_: Exception) { storageHealthy = false }
         selectedId = state?.getString("selected") ?: getPreferences(MODE_PRIVATE).getString("selected", "").orEmpty()
         startupChecked = state?.getBoolean("startup-checked") ?: false
@@ -94,11 +91,24 @@ class MainActivity : Activity() {
     }
     override fun onStart() {
         super.onStart()
-        if(!startupChecked) { startupChecked = true; if(profiles.values.none { it.paired }) scan() }
+        if(!startupChecked) { startupChecked = true; if(!catalog.hasPairings()) scan() }
     }
-    override fun onStop() { discovery.stop(); scanning = false; afterScan = null; updateRefreshAnimation();updateControls();super.onStop() }
+    override fun onStop() {
+        discovery.stop()
+        scanning = false
+        afterScan = null
+        updateRefreshAnimation()
+        updateControls()
+        super.onStop()
+    }
     override fun onDestroy() {
-        destroyed = true; refreshAnimation?.cancel(); operation?.close(); discovery.stop(); dialog?.dismiss(); worker.shutdownNow(); main.removeCallbacksAndMessages(null)
+        destroyed = true
+        refreshAnimation?.cancel()
+        operation?.close()
+        discovery.stop()
+        dialog?.dismiss()
+        worker.shutdownNow()
+        main.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
     override fun onSaveInstanceState(out: Bundle) {
@@ -245,13 +255,9 @@ class MainActivity : Activity() {
         renderDevices()
         updateRefreshAnimation()
     }
-    private fun choices(): List<Tv> {
-        val all = LinkedHashMap(profiles)
-        discovered.forEach { (id, tv) -> all[id] = profiles[id]?.copy(name=tv.name,endpoint=tv.endpoint) ?: tv }
-        return all.values.map { it.copy(alias=localNames[it.id].orEmpty()) }
-    }
+    private fun choices(): List<Tv> = catalog.choices()
     private fun selected() = choices().firstOrNull { it.id == selectedId }
-    private fun paired(tv: Tv) = tv.paired && tv.id !in invalidKeys
+    private fun paired(tv: Tv) = catalog.isPaired(tv)
     private fun renderDevices() {
         val values = choices()
         if(selectedId.isEmpty() || values.none { it.id == selectedId }) selectedId = values.firstOrNull()?.id.orEmpty()
@@ -324,33 +330,65 @@ class MainActivity : Activity() {
             }
         } else { refreshAnimation?.cancel();refreshAnimation=null;(refresh as Artwork).glyphRotation=0f }
     }
-    private fun persist(next: Map<String,Tv>): Boolean {
-        if(!storageHealthy) { message("storage_error",true); return false }
+    private fun persist(action: () -> Unit): Boolean {
+        if (!storageHealthy) {
+            message("storage_error", true)
+            return false
+        }
         return try {
-            val connections = next.mapValues { it.value.copy(alias="") }
-            store.saveState(connections, localNames); profiles.clear(); profiles.putAll(connections); true
-        } catch (_: Exception) { message("storage_error",true); false }
+            action()
+            true
+        } catch (_: Exception) {
+            message("storage_error", true)
+            false
+        }
     }
     private fun scan(completion: (() -> Unit)? = null) {
-        if(scanning || busy || destroyed) return
+        if (scanning || busy || destroyed) return
         // A scan is a fresh mDNS snapshot. Saved profiles remain visible, but
         // unpaired devices from the previous scan must not survive if they are
         // no longer advertised.
-        discovered.clear(); lastRows = null; renderDevices()
-        scanning = true; afterScan = completion;updateRefreshAnimation();updateControls()
-        discovery.start({ tv -> if(!destroyed) { discovered[tv.id] = tv; renderDevices() } }, { success ->
-            if(!destroyed) { scanning = false;updateRefreshAnimation(); updateControls(); if(!success) message("search_failed",true,detail=discovery.lastError)
-                val done=afterScan; afterScan=null; done?.invoke() }
-        })
+        catalog.beginDiscovery()
+        lastRows = null
+        renderDevices()
+        scanning = true
+        afterScan = completion
+        updateRefreshAnimation()
+        updateControls()
+        discovery.start(
+            { tv ->
+                if (!destroyed) {
+                    catalog.discover(tv)
+                    renderDevices()
+                }
+            },
+            { success ->
+                if (!destroyed) {
+                    scanning = false
+                    updateRefreshAnimation()
+                    updateControls()
+                    if (!success) message("search_failed", true, detail = discovery.lastError)
+                    val done = afterScan
+                    afterScan = null
+                    done?.invoke()
+                }
+            }
+        )
     }
     private fun <T> work(action: (Operation) -> T, done: (T) -> Unit, failed: (Exception) -> Unit = { showError(it) }) {
-        if(busy || destroyed) return
-        busy = true; val task = Operation(); operation = task; updateControls()
+        if (busy || destroyed) return
+        busy = true
+        val task = Operation()
+        operation = task
+        updateControls()
         worker.execute {
             val result = runCatching { action(task) }
             main.post {
-                if(!destroyed) {
-                    busy = false; operation = null; sending = false; updateControls()
+                if (!destroyed) {
+                    busy = false
+                    operation = null
+                    sending = false
+                    updateControls()
                     result.fold({ done(it) }, { failed(it as? Exception ?: IOException(it)) })
                 }
             }
@@ -414,7 +452,7 @@ class MainActivity : Activity() {
             work({ SenderClient.exchange(pinned,1,pin,operation=it) }, { reply ->
                 if(reply.code==0) {
                     val paired=tv.copy(token=reply.token,fingerprint=fingerprint)
-                    if(persist(LinkedHashMap(profiles).apply { put(tv.id,paired) })) { invalidKeys.remove(tv.id); selectedId=tv.id; lastRows=null;clearMessage(tv.id);input.requestFocus() }
+                    if(persist { catalog.pair(paired) }) { selectedId=tv.id; lastRows=null;clearMessage(tv.id);input.requestFocus() }
                 } else replyMessage(reply.code,tv.id)
             },{ showError(it,tv.id) })
         })
@@ -429,18 +467,19 @@ class MainActivity : Activity() {
         if(runCatching { Wire.utf8(draft).size <= Wire.MAX_TEXT }.getOrDefault(false).not()) { message("too_long",true); return }
         sending=true
         work({ SenderClient.exchange(tv,3,id=UUID.randomUUID().toString(),text=draft,operation=it) }, { reply ->
-            if(reply.code==1) { invalidKeys.add(tv.id); renderSelection(); updateControls() }
+            if(reply.code==1) { catalog.invalidate(tv.id); renderSelection(); updateControls() }
             if(reply.code==0) {
-                if(profiles[tv.id]?.endpoint != tv.endpoint) persist(LinkedHashMap(profiles).apply { put(tv.id,tv) })
+                val remembered=persist { catalog.rememberEndpoint(tv) }
                 if(input.text.toString()==draft) input.text.clear()
+                if(!remembered) return@work
             }
             replyMessage(reply.code,tv.id)
         }, { error ->
-            if(error is PinMismatch) { invalidKeys.add(tv.id); renderSelection(); updateControls(); showError(error,tv.id) }
+            if(error is PinMismatch) { catalog.invalidate(tv.id); renderSelection(); updateControls(); showError(error,tv.id) }
             else if(error is InvalidReply) showError(error,tv.id)
             else {
                 message("uncertain",true,tv.id)
-                if(!scanning) scan { if(discovered[tv.id]?.endpoint?.let { it!=tv.endpoint }==true) message("address_updated",true,tv.id) }
+                if(!scanning) scan { if(catalog.advertisement(tv.id)?.endpoint?.let { it!=tv.endpoint }==true) message("address_updated",true,tv.id) }
             }
         })
     }
@@ -463,11 +502,12 @@ class MainActivity : Activity() {
             });submit.isEnabled=Wire.validName(name.text.toString())
             submit.setOnClickListener {
                 if(!Wire.validName(name.text.toString()))return@setOnClickListener
-                val names=LinkedHashMap(localNames).apply { put(tv.id,name.text.toString().trim()) }
                 try {
                     check(storageHealthy)
-                    store.saveState(profiles,names);localNames.clear();localNames.putAll(names)
-                    current.dismiss();lastRows=null;renderDevices()
+                    catalog.rename(tv.id, name.text.toString())
+                    current.dismiss()
+                    lastRows = null
+                    renderDevices()
                 } catch (_: Exception) { message("storage_error",true) }
             }
             name.setOnEditorActionListener { _,action,_ -> if(action==EditorInfo.IME_ACTION_DONE&&submit.isEnabled){submit.performClick();true}else false }
@@ -477,8 +517,8 @@ class MainActivity : Activity() {
     private fun unpair(tv: Tv) {
         showDialog(AlertDialog.Builder(this).setTitle(text("unbind_title")).setMessage(text("unbind_hint")).setNegativeButton(text("cancel"),null).setPositiveButton(text("unbind")) { _,_ ->
             work({ runCatching { SenderClient.exchange(tv,4,operation=it).code in 0..1 }.getOrDefault(false) }, { notified ->
-                if(persist(LinkedHashMap(profiles).apply { remove(tv.id) })) {
-                    invalidKeys.remove(tv.id); lastRows=null; renderDevices(); clearMessage(); scan()
+                if(persist { catalog.forget(tv.id) }) {
+                    lastRows=null; renderDevices(); clearMessage(); scan()
                     if(!notified) showDialog(AlertDialog.Builder(this).setTitle(text("unbind_failed_title")).setMessage(text("unbind_failed")).setPositiveButton(android.R.string.ok,null))
                 }
             })

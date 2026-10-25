@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.tvtext.app" android:versionCode="27" android:versionName="2.0.7">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.tvtext.app">
     <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="34"/>
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>

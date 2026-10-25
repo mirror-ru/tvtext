@@ -9,6 +9,7 @@ import javax.net.ssl.*
 
 object CoreTests {
     @JvmStatic fun main(args: Array<String>) {
+        ReceiverStatusTests.run()
         var stored = ""
         var time = 1000L
         var ready = true

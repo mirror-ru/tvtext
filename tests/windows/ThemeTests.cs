@@ -39,7 +39,7 @@ internal static class ThemeTests
                     {
                         theme.PerformClick();Application.DoEvents();
                         Check(Theme.IsDark==(i%2==0),"theme button alternates day and night");
-                        Check(theme.Focused,"theme button retains keyboard focus");
+                        CheckFocus(form,theme,"theme button retains keyboard focus");
                         Check(input.Text=="Черновик · draft"&&input.SelectionStart==2&&input.SelectionLength==4,"theme changes preserve the draft and selection");
                         Check(list.SelectedIndex==1&&list.Items.Count==4,"theme changes preserve the TV selection");
                         Check(input.Bounds==initialInput&&list.Bounds==initialList,"theme changes do not resize controls");
@@ -81,7 +81,8 @@ internal static class ThemeTests
             TextBox name=(TextBox)rename.Controls.Find("DeviceNameInput",true)[0];
             Control field=rename.Controls.Find("DeviceNameField",true)[0],hint=rename.Controls.Find("RenameHint",true)[0],heading=rename.Controls.Find("RenameHeading",true)[0];
             Button save=(Button)rename.Controls.Find("SaveNameButton",true)[0];
-            Check(name.Focused&&name.SelectionLength==name.Text.Length,"rename starts with the existing name selected");
+            CheckFocus(rename,name,"rename starts with editor focus");
+            Check(name.SelectionStart==0&&name.SelectionLength==name.Text.Length,"rename selects the entire existing name");
             Check(name.BackColor==Theme.Input&&name.ForeColor==Theme.Ink,"rename editor uses the current theme");
             Check(Math.Abs(name.Top-(field.Height-name.Height)/2)<=1&&name.Height==name.PreferredHeight,"rename caret keeps native height and vertical centering");
             Check(!hint.Text.EndsWith(".")&&!heading.Text.EndsWith("."),"rename text has no trailing full stops");
@@ -116,6 +117,22 @@ internal static class ThemeTests
     {
         form.StartPosition=FormStartPosition.Manual;form.Location=new Point(-20000,-20000);form.ShowInTaskbar=false;form.Show();Application.DoEvents();
         if(scale!=1f){form.Scale(new SizeF(scale,scale));form.PerformLayout();Application.DoEvents();}
+    }
+    private static void CheckFocus(Form form,Control expected,string message)
+    {
+        // An off-screen test window need not own the desktop foreground focus.
+        // Verify the logical focus chosen by the app without activating it or
+        // setting focus from the test, which would conceal a real regression.
+        DateTime deadline=DateTime.UtcNow.AddSeconds(1);
+        Control active;
+        do
+        {
+            Application.DoEvents();active=form.ActiveControl;
+            while(active is ContainerControl&&((ContainerControl)active).ActiveControl!=null)active=((ContainerControl)active).ActiveControl;
+            if(active==expected&&(!form.ContainsFocus||expected.Focused))return;
+            System.Threading.Thread.Sleep(10);
+        }while(DateTime.UtcNow<deadline);
+        throw new Exception(message+": active="+(active==null?"null":active.Name)+", expected="+expected.Name+", windowContainsFocus="+form.ContainsFocus);
     }
     private static void CheckFooter(MainForm form)
     {

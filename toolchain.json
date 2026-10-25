@@ -1,0 +1,7 @@
+{
+  "jdk": "21.0.10",
+  "kotlin": "2.2.20-release-333",
+  "androidPlatform": "android-36.1",
+  "androidPlatformRevision": "1",
+  "androidBuildTools": "37.0.0"
+}

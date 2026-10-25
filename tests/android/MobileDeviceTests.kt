@@ -161,25 +161,36 @@ class MobileDeviceTests : Instrumentation() {
                     }
                     waitForIdleSync();check(field("scanning")==false) { "Dragging outside a button cancels its action" }
                     draft("")
-                    click("refresh");check(field("scanning")==true)
-                    Thread.sleep(150);ui { check((view("refresh") as Artwork).glyphRotation>0f) { "Refresh glyph must animate" };check(view("refresh").rotation==0f) { "Button background must not rotate" } }
-                    // Keep the asynchronous-state check inside the five-second
-                    // scan budget; pointer injection may wait for window animations.
-                    ui { val theme=view("theme");val start=SystemClock.uptimeMillis();motion(theme,MotionEvent.ACTION_DOWN,theme.width/2f,theme.height/2f,start);motion(theme,MotionEvent.ACTION_UP,theme.width/2f,theme.height/2f,start) }
-                    check(field("darkMode")==true) { "A theme tap switches mode once" }
-                    check(field("scanning")==true) { "Theme rebuild preserves the active scan" }
+                    // Exercise this state transition synchronously, before the
+                    // real scan deadline. Native pointer dispatch is covered by
+                    // the other button/row checks; View posts touch click callbacks.
+                    ui {
+                        val refresh=view("refresh")
+                        check(refresh.performClick())
+                        check(field("scanning")==true)
+                        val animation=field("refreshAnimation") as android.animation.ObjectAnimator
+                        check(animation.isRunning)
+                        animation.currentPlayTime=250
+                        check((refresh as Artwork).glyphRotation>0f) { "Refresh glyph must animate" }
+                        check(refresh.rotation==0f) { "Button background must not rotate" }
+                        val theme=view("theme")
+                        check(theme.performClick())
+                        check(field("darkMode")==true) { "A theme tap switches mode once" }
+                        check(field("scanning")==true) { "Theme rebuild preserves the active scan" }
+                    }
                     waitUntil { field("scanning")==false };ui { check((view("refresh") as Artwork).glyphRotation==0f) }
                     click("theme");check(field("darkMode")==false)
                     val list=view("tv-list") as ScrollView
                     ui { check(list.height==3*(view("tv-${a.id}").height)+(8*activity.resources.displayMetrics.density+.5f).toInt()) { "Reserve three TV slots" } }
                     val extra=(1..3).map { Tv(java.util.UUID.randomUUID().toString(),"Новый ТВ $it",a.endpoint) }
-                    @Suppress("UNCHECKED_CAST") val discovered=field("discovered") as MutableMap<String,Tv>
+                    val catalog=field("catalog") as ConnectionCatalog
+                    val advertised=catalog.choices().map { it.copy(token="",fingerprint="") }
                     val render=MainActivity::class.java.getDeclaredMethod("renderDevices").apply { isAccessible=true }
-                    ui { extra.forEach { discovered[it.id]=it };render.invoke(activity) }
+                    ui { extra.forEach { catalog.discover(it) };render.invoke(activity) }
                     ui { check((view("tv-list") as ScrollView).canScrollVertically(1)) { "More than three TVs must scroll" } }
                     click("tv-${extra[0].id}");check(field("selectedId")==extra[0].id) { "one click selects the TV immediately" };check(caption(extra[0].id).text=="Нажмите на кнопку «Подключить»")
                     check(!input().hasFocus()&&!view("send").isEnabled)
-                    ui { extra.forEach { discovered.remove(it.id) };render.invoke(activity) }
+                    ui { catalog.beginDiscovery();advertised.forEach { catalog.discover(it) };render.invoke(activity) }
                     click("refresh");check(field("scanning")==true)
                     val coveringMonitor=addMonitor(MainActivity::class.java.name,null,false)
                     ui { activity.startActivity(Intent(targetContext,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)) }
@@ -204,7 +215,7 @@ class MobileDeviceTests : Instrumentation() {
                     click("tv-${b.id}"); click("connect"); ui { dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick() }; idle()
                     check(store.load()[b.id]?.paired!=true && SenderClient.exchange(b,2).code==1)
                     waitUntil { field("scanning")==false }
-                    ui { discovered.remove(b.id);render.invoke(activity) }
+                    ui { catalog.beginDiscovery();catalog.discover(a.copy(token="",fingerprint=""));render.invoke(activity) }
                     check(activity.window.decorView.findViewWithTag<View>("tv-${b.id}")==null) { "An absent renamed TV disappears after unpairing" }
                     check(store.loadState().names[b.id]=="Спальня" && !store.loadState().profiles.containsKey(b.id)) { "Unpair keeps only the local name, never an unpaired profile" }
                     click("refresh");waitUntil { field("scanning")==false }
@@ -251,7 +262,7 @@ class MobileDeviceTests : Instrumentation() {
                     check(screenshot.getPixel(screenshot.width/2,screenshot.height/2)!=android.graphics.Color.BLACK) { "Rendering is disabled on this test image" }
                     val preview=File(targetContext.getExternalFilesDir(null),"TVText-Mobile.png")
                     preview.outputStream().use { screenshot.compress(Bitmap.CompressFormat.PNG,100,it) }; screenshot.recycle()
-                    finish(Activity.RESULT_OK,Bundle().apply { putString("stream","PASS: Android 14: NSD, saved-pairing startup policy, refresh animation/cancellation, Keystore, TLS, Unicode, TV-local status, drafts/selection, themed rename, revoke/pairing, RU/EN, day/night persistence and recreation. Screenshot: ${preview.path}\n") })
+                    finish(Activity.RESULT_OK,Bundle().apply { putString("stream","PASS: Android API ${android.os.Build.VERSION.SDK_INT}: NSD, saved-pairing startup policy, refresh animation/cancellation, Keystore, TLS, Unicode, TV-local status, drafts/selection, themed rename, revoke/pairing, RU/EN, day/night persistence and recreation. Screenshot: ${preview.path}\n") })
                 }
             }
         } catch(error:Throwable) {

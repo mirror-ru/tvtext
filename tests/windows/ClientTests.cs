@@ -13,11 +13,18 @@ public static class ClientTests
     private static void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
     [STAThread] public static int Main(string[] args)
     {
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+        try { return Run(args); }
+        catch(Exception error) { Console.Error.WriteLine(error); return 1; }
+    }
+    private static int Run(string[] args)
+    {
         if(args[0]=="profile-writer")return ClientReliabilityTests.ProfileWriter(args[1]);
         if(args[0]=="pair-dialog")return PairDialogTests.Run(args[1]);
         if(args[0]=="device-list")return DeviceListTests.Run(args[1]);
         if(args[0]=="theme")return ThemeTests.Run(args[1]);
         if(args[0]=="dpi-layout")return DpiLayoutTests.Run();
+        if(args[0]=="connection-save"){ConnectionSaveTests.Run();return 0;}
         if (args[0] == "preview")
         {
             Application.EnableVisualStyles();
@@ -43,6 +50,7 @@ public static class ClientTests
         }
         try
         {
+            ConnectionCatalogTests.Run();
             string endpoint = "127.0.0.1:45832";
             ClientReliabilityTests.Run(Path.GetDirectoryName(Path.GetFullPath(args[0])));
             string[] details = File.ReadAllLines(args[0]);

@@ -17,6 +17,8 @@ import android.os.ParcelFileDescriptor;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityEvent;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
@@ -82,31 +84,56 @@ public final class ThemeDeviceTests extends Instrumentation {
     private AlertDialog openConnections(){ui(()->((Button)field("computersButton")).performClick());pause(150);waitForIdleSync();return (AlertDialog)field("dialog");}
     private void closeConnections(){AlertDialog current=(AlertDialog)field("dialog");ui(()->current.getWindow().getDecorView().findViewWithTag("connections-close").performClick());}
     private String clipboardText(ClipboardManager clipboard){ClipData clip=clipboard.getPrimaryClip();return clip==null?null:clip.getItemAt(0).coerceToText(getTargetContext()).toString();}
+    private void legacyInsertionChecks(BridgeRuntime runtime,EditText editor){
+        final int[] mode={0},setTextActions={0};
+        ui(()->editor.setAccessibilityDelegate(new View.AccessibilityDelegate(){
+            @Override public void onInitializeAccessibilityNodeInfo(View host,AccessibilityNodeInfo info){
+                super.onInitializeAccessibilityNodeInfo(host,info);
+                if(mode[0]==1)info.removeAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_PASTE);
+            }
+            @Override public boolean performAccessibilityAction(View host,int action,Bundle arguments){
+                if(action==AccessibilityNodeInfo.ACTION_SET_TEXT)setTextActions[0]++;
+                if(mode[0]==2&&action==AccessibilityNodeInfo.ACTION_PASTE)return false;
+                return super.performAccessibilityAction(host,action,arguments);
+            }
+        }));
+        try{
+            ui(()->{editor.setText("left right");editor.setSelection(5);});pause(200);
+            check(LegacyInputBridge.INSTANCE.insert(runtime.getService(),"middle ",()->Boolean.TRUE).getCode()==Protocol.OK,"legacy insertion at cursor");
+            waitUntil(()->editor.getText().toString().equals("left middle right"));
+            ui(()->editor.setSelection(5,12));pause(200);
+            check(LegacyInputBridge.INSTANCE.insert(runtime.getService(),"new ",()->Boolean.TRUE).getCode()==Protocol.OK,"legacy insertion replaces selection only");
+            waitUntil(()->editor.getText().toString().equals("left new right"));
+            for(int testMode=1;testMode<=2;testMode++){
+                final int next=testMode;
+                ui(()->{mode[0]=next;editor.sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);});pause(300);
+                if(testMode==1)check(!LegacyInputBridge.INSTANCE.status(runtime.getService()).getReady(),"set-text-only field is not ready for insertion");
+                check(LegacyInputBridge.INSTANCE.insert(runtime.getService(),"must not overwrite",()->Boolean.TRUE).getCode()==Protocol.NO_FIELD,"unsupported or rejected paste reports failure");
+                pause(100);check(editor.getText().toString().equals("left new right")&&setTextActions[0]==0,"failure never replaces existing field contents");
+            }
+        }finally{ui(()->{editor.setAccessibilityDelegate(null);editor.sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);});pause(300);}
+    }
     private void legacyClipboardChecks(BridgeRuntime runtime){
         pause(850);waitForIdleSync();
         ClipboardManager clipboard=getTargetContext().getSystemService(ClipboardManager.class);
         ClipData previous=clipboard.getPrimaryClip();
         try{
-            ui(()->{
-                clipboard.setPrimaryClip(ClipData.newPlainText("Fixture","original clipboard"));
-                check(LegacyInputBridge.INSTANCE.insert(runtime.getService(),"first insert",()->Boolean.TRUE).getCode()==Protocol.OK,"first rapid insert");
-            });
+            ui(()->clipboard.setPrimaryClip(ClipData.newPlainText("Fixture","original clipboard")));
+            check(LegacyInputBridge.INSTANCE.insert(runtime.getService(),"first insert",()->Boolean.TRUE).getCode()==Protocol.OK,"first rapid insert");
             pause(100);
-            ui(()->check(LegacyInputBridge.INSTANCE.insert(runtime.getService(),"second insert",()->Boolean.TRUE).getCode()==Protocol.OK,"second rapid insert"));
+            check(LegacyInputBridge.INSTANCE.insert(runtime.getService(),"second insert",()->Boolean.TRUE).getCode()==Protocol.OK,"second rapid insert");
             waitUntil(()->"original clipboard".equals(clipboardText(clipboard)));
-            ui(()->{
-                check(LegacyInputBridge.INSTANCE.insert(runtime.getService(),"third insert",()->Boolean.TRUE).getCode()==Protocol.OK,"insert before user copy");
-                clipboard.setPrimaryClip(ClipData.newPlainText("User","new user clipboard"));
-            });
+            check(LegacyInputBridge.INSTANCE.insert(runtime.getService(),"third insert",()->Boolean.TRUE).getCode()==Protocol.OK,"insert before user copy");
+            ui(()->clipboard.setPrimaryClip(ClipData.newPlainText("User","new user clipboard")));
             pause(900);waitForIdleSync();check("new user clipboard".equals(clipboardText(clipboard)),"restore preserves an intervening user copy");
-            ui(()->{
-                clipboard.clearPrimaryClip();
-                check(LegacyInputBridge.INSTANCE.insert(runtime.getService(),"empty clipboard insert",()->Boolean.TRUE).getCode()==Protocol.OK,"insert with empty original clipboard");
-            });
+            ui(clipboard::clearPrimaryClip);
+            check(LegacyInputBridge.INSTANCE.insert(runtime.getService(),"empty clipboard insert",()->Boolean.TRUE).getCode()==Protocol.OK,"insert with empty original clipboard");
             waitUntil(()->!clipboard.hasPrimaryClip());
         }finally{ui(()->{if(previous==null)clipboard.clearPrimaryClip();else clipboard.setPrimaryClip(previous);});}
     }
     @Override public void onStart(){
+        ClipboardManager clipboard=getTargetContext().getSystemService(ClipboardManager.class);
+        final ClipData[] originalClipboard={null};final boolean[] clipboardCaptured={false};
         String oldServices=shell("settings get secure enabled_accessibility_services"),oldEnabled=shell("settings get secure accessibility_enabled");
         String oldIme=shell("settings get secure default_input_method");
         String oldHardwareKeyboard=shell("settings get secure show_ime_with_hard_keyboard");
@@ -163,6 +190,10 @@ public final class ThemeDeviceTests extends Instrumentation {
             ui(()->((View)field("keyboardButton")).performClick());
             AlertDialog keyboard=(AlertDialog)field("dialog");EditText editor=keyboard.getWindow().getDecorView().findViewWithTag("keyboard-test-input");
             check(editor!=null&&editor.hasFocus(),"keyboard test opens with editor focus");
+            // EditText advertises Paste only while the clipboard contains text.
+            // Readiness checks inspect that action; insertion also separately
+            // tests an initially empty clipboard and must prepare it itself.
+            ui(()->{originalClipboard[0]=clipboard.getPrimaryClip();clipboardCaptured[0]=true;clipboard.setPrimaryClip(ClipData.newPlainText("Fixture","paste readiness"));});
             final String activeToken=token;
             waitUntil(()->runtime.getEngine().handle(new Protocol.Request(Protocol.STATUS,activeToken,"",""),()->Boolean.TRUE).getReady());
             String testText="Проверка TVText — test 123";
@@ -172,8 +203,10 @@ public final class ThemeDeviceTests extends Instrumentation {
             capture("TVText-TV-dark-keyboard-test.png");
             check(keyboard.getWindow().getDecorView().findViewWithTag("keyboard-test-clear")==null,"keyboard test has no Clear action");
             waitUntil(()->{final boolean[] ready={false};ui(()->ready[0]=LegacyInputBridge.INSTANCE.status(runtime.getService()).getReady());return ready[0];});
-            ui(()->check(LegacyInputBridge.INSTANCE.insert(runtime.getService(),"Legacy test",()->Boolean.TRUE).getCode()==Protocol.OK,"legacy bridge accepts dedicated test field"));
+            ui(editor::selectAll);pause(200);
+            check(LegacyInputBridge.INSTANCE.insert(runtime.getService(),"Legacy test",()->Boolean.TRUE).getCode()==Protocol.OK,"legacy bridge accepts dedicated test field");
             waitUntil(()->editor.getText().toString().equals("Legacy test"));
+            legacyInsertionChecks(runtime,editor);
             legacyClipboardChecks(runtime);
             ui(()->keyboard.getWindow().getDecorView().findViewWithTag("keyboard-test-close").performClick());
             check(((View)field("keyboardButton")).hasFocus(),"closing test restores footer focus");
@@ -204,9 +237,10 @@ public final class ThemeDeviceTests extends Instrumentation {
             check(runtime.getEngine().pairedTokens().size()==connectionCount-1,"confirm deletes exactly one connection");
             check(((AlertDialog)field("dialog")).getWindow().getDecorView().findViewWithTag("connections-panel")!=null,"deletion returns to updated device list");closeConnections();
             checkTheme();capture("TVText-TV-dark-ready.png");
-            result.putString("stream","PASS: Android TV themes: unified information cards, dark/light RU/EN, D-pad focus, styled device lists and revoke cancellation, keyboard dialog remote insert via API 33 and legacy bridges, close, no retained text, readable contrast\n");resultCode=Activity.RESULT_OK;
+            result.putString("stream","PASS: Android TV themes: API "+android.os.Build.VERSION.SDK_INT+", unified cards, dark/light RU/EN, D-pad focus, lists and revoke, keyboard insert, legacy cursor/selection/paste rejection/clipboard restoration, close, no retained text, contrast\n");resultCode=Activity.RESULT_OK;
         }catch(Throwable error){result.putString("stream","FAIL: "+android.util.Log.getStackTraceString(error)+"\n");}
         finally{
+            if(clipboardCaptured[0])ui(()->{if(originalClipboard[0]==null)clipboard.clearPrimaryClip();else clipboard.setPrimaryClip(originalClipboard[0]);});
             for(String fixture:fixtureTokens)if(!fixture.isEmpty())try{BridgeRuntime.Companion.get(getTargetContext()).getEngine().revokeToken(fixture);}catch(Exception ignored){}
             restoreSetting("enabled_accessibility_services",oldServices);restoreSetting("accessibility_enabled",oldEnabled);
             if(!oldIme.isEmpty()&&!oldIme.equals("null"))shell("ime set "+oldIme);else shell("ime reset");

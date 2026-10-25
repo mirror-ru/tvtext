@@ -67,6 +67,11 @@ class BridgeRuntime private constructor(context: Context) {
     private var identity: Identity? = null // Keystore/SSL setup is reused across receiver restarts.
     private var retryMillis = 1000L
     private val main = Handler(Looper.getMainLooper())
+    // Legacy accessibility actions can call back into the target's UI thread,
+    // including our keyboard test. Do not block that thread waiting for itself.
+    private val legacyInput = if (Build.VERSION.SDK_INT < 33)
+        ThreadPoolExecutor(1, 1, 0, TimeUnit.SECONDS, ArrayBlockingQueue<Runnable>(2),
+            ThreadFactory { task -> Thread(task, "TVText-input").apply { isDaemon = true } }) else null
     @Volatile var service: TextService? = null; private set
     @Volatile var fingerprint = ""; private set
     @Volatile var error = ""; private set
@@ -107,9 +112,11 @@ class BridgeRuntime private constructor(context: Context) {
                     restartGeneration == expectedGeneration && authorized()
             }
         })
-        main.post(work)
+        try { if (legacyInput == null) main.post(work) else legacyInput.execute(work) }
+        catch (_: RejectedExecutionException) { return Protocol.Response(Protocol.UNCERTAIN, "Поле занято. Проверьте текст на ТВ перед повтором.") }
         return try { work.get(2500, TimeUnit.MILLISECONDS) } catch (_: Exception) {
             work.cancel(false); main.removeCallbacks(work)
+            legacyInput?.remove(work)
             Protocol.Response(Protocol.UNCERTAIN, "Нет подтверждения от поля. Проверьте текст на ТВ перед повтором.")
         }
     }
