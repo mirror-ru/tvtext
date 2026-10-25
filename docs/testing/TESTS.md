@@ -1,5 +1,51 @@
 # TVText test report
 
+## Git ignore audit — 26 October 2026
+
+- Existing build/output/local-key exclusions cover the current generated files. Added explicit rules for `signing-password.txt`, `.env` / `.env.*` and APK `.idsig` sidecars; `.env.example` templates remain eligible.
+- Verified positive/negative ignore cases, no already tracked files matching ignore rules, and an unchanged set of eligible new source/test files. Public signing-certificate fingerprints, version/toolchain metadata and the Windows `.exe.config` source remain eligible. No application rebuild or GitHub publication was needed.
+
+## Local version 2.0.9 rebuild — 26 October 2026
+
+- Built all three applications from the current local sources: APK version 2.0.9 / code 29 and Windows assembly/file/product version 2.0.9.0. Artifacts are under `outputs/TVText-2.0.9/`.
+- The output directory contains only the TV APK, mobile APK, EXE and EXE configuration. Matching local APK/JAR build records, SHA-256 sums and `verification.json` stay in `build/rebuild-2.0.9/`.
+- Verified both package IDs, minSdk 28 / targetSdk 34, alignment, the existing pinned signing certificate, exact APK/JAR/source pairing, Windows versions, runtime configuration and hashes after copying.
+- Build tooling checks passed: `build/build-tests-fb0fa9ba51384182950c9e77c0c881e8`. Functional/UI suites were not repeated for this metadata-only version bump; the preceding refactoring and destruction-order checks are recorded below.
+- Previous 2.0.8 output remains intact. No Git commit, tag or GitHub publication was created.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| TV APK | `d9819cd3f46252ea4f25476d42fe1da80a1b36fe7d97538b24322d76f75d76e2` |
+| Mobile APK | `0b51c25d2ce17d83beb48bc23e9d7d5189a603be6d72ba3a34cd7eeb04cf3b60` |
+| Windows EXE | `914f26c7d55d3b48cc288e456bcd3d0026603a750921dcf0106227364290876d` |
+| EXE configuration | `8d77ce46414815bd762d840d78d2339bfffb257a19e31a863081b660226dbf27` |
+
+## Destruction-order regression fixed — 26 October 2026
+
+- The P3 review finding is resolved: cancellation and worker shutdown precede discovery shutdown; repeated destruction does nothing.
+- Added a deterministic regression where a worker has taken a request from the queue but resumes only while `Discovery.stop()` is waiting. It confirms no transport call, confirmation or UI notice after destruction. Also checked cleanup before a discovery-stop exception and idempotent destruction.
+- The new regression failed on the old code with `Queued transport started while stopping discovery: [3]` (`build/destroy-fix-red.log`). It passed after the fix with all mobile JVM/TLS checks: `build/mobile-test-0cdeb02bdc734e2da7e1321a91373000` / `build/destroy-fix-green.log`.
+- Mobile APK compilation/R8/packaging/signature verification passed under `build/destroy-fix/`, with version 2.0.8 / 28. The earlier API 34 UI results remain recorded below; this targeted fix was checked with JVM/TLS regressions and an APK rebuild, without repeating UI instrumentation.
+- Published 2.0.8 artifacts and GitHub refs remain unchanged.
+
+## Mobile test rename and local review — 26 October 2026
+
+- Mobile test sources, fixtures and instrumentation manifest are now under `tests/android-mobile/`. Six file hashes were unchanged by the move; all active path references were updated.
+- The renamed entry point passed JVM/TLS checks, built/installed the instrumentation APK and passed the complete API 34 mobile touch/UI suite: `build/mobile-test-5d8b708f77e648979ca34472ae54ea3d`.
+- The review covered the complete unpushed refactoring, including new workflow/controller/dialog/style classes and the adapted tests.
+- The review recorded a P3 opportunity: `SenderController.destroy()` stopped discovery before closing its operation. In an isolated controller test, queued work could reach the transport while discovery shutdown waited (`build/review-destroy-order.kt`, log `build/review-destroy-order.log`). The Activity already stopped discovery in `onStop()`, so its normal close-path regression was not demonstrated. The initial P2 suspicion was downgraded after checking that lifecycle. No high/medium regression was confirmed. The subsequent fix recorded above resolves P3.
+- No application version or published release file was changed; no commit or push was performed.
+
+## Local window/controller/dialog refactoring — 26 October 2026
+
+- Rebuilt all three apps under `build/refactor-final/` with unchanged 2.0.8 / Android code 28 metadata. APK signatures, pinned certificate, package/SDK metadata, alignment, exact APK/JAR pairing and the final source fingerprint were verified. Published files in `outputs/TVText-2.0.8/` retain their previous checksums; no commit, push or tag change was made.
+- Direct Windows workflow tests now exercise validated pairing, saved names, explicit write failures, revocation, cancelled work, certificate/identity rejection and one verified address-recovery proposal after an unsuccessful send without replay. Full Windows/TLS/DPI/focus/UI tests passed: `build/test-c87d9cf97ecc491aa862334e8b96342b`.
+- Compared all 35 corresponding Windows snapshots with `build/test-76dac2cf484d4c7383b6073bea00aa8c`: every image is pixel-identical.
+- Direct mobile controller tests use deterministic worker/UI queues and fake discovery/transport without Android classes. They cover an edited draft, rejected and unconfirmed sends, no replay, endpoint-save failure after confirmed delivery, pin rejection, stale scan callbacks, destruction before background execution and after a response is queued, unpair failure/success, and explicit pairing confirmation.
+- Mobile JVM/TLS and actual-touch UI suites passed: `build/mobile-test-85a206b9586d40088bd6818aded8fbe8`. Startup-state and dialog fixtures now read the extracted components instead of removed Activity fields. The first device attempt exposed an outdated test-field lookup; the fixture was corrected and the complete device workflow rerun.
+- TV UI passed: `build/tv-ui-test-4646fc0f1cc0400c9b47ee26f1684de7`. Existing dialog/focus/contrast/insertion checks remain, with an added recreation test while the keyboard dialog is open: old dialog dismissed, allowed test target closed, reopened editor empty.
+- Android device checks use the isolated API 34 emulator. The matrix at `build/refactor-compatibility-final.json` explicitly marks other API levels and physical devices untested. The test emulator was stopped afterward.
+
 ## Final 2.0.8 rebuild after hardening — 25 October 2026
 
 - Replaced the requested local release under `outputs/TVText-2.0.8/`: TV APK (82,895 bytes), mobile APK (74,136 bytes), EXE (109,056 bytes), and EXE configuration. APK version/code: `2.0.8` / `28`; Windows assembly/file version: `2.0.8.0`.
@@ -33,7 +79,7 @@
 - Windows: `TVText-2.0.8.exe` / `2.0.8.0`, with `TVText-2.0.8.exe.config`.
 - These hashes describe the initial build before the hardening changes. APK signatures and APK/EXE version metadata were verified at that time; the final rebuild replaces files under `outputs/TVText-2.0.8/`.
 - SHA-256: TV APK `16B5933F7EAF7F613B1821CEB3D88BC5C8193F6B4EDA56B94CB74DAB365A0D3F`; mobile APK `9EAA3AE9B3066E144C5C9C45D0B4615B8D27A58FA4E7E3D901DBD06650BEB58D`; Windows EXE `9AFB2007B5A2399B416D3838D9D716C5DA773D3BE140B651F8D410B766349408`.
-- The mobile application directory is now `android-mobile/`. Build records use target `android-mobile` and locate the exact classes at `build/run-*/android-mobile/app.jar`. Mobile test sources remain in `tests/android/`.
+- The mobile application directory is now `android-mobile/`. Build records use target `android-mobile` and locate the exact classes at `build/run-*/android-mobile/app.jar`. Mobile test sources are in `tests/android-mobile/`.
 - Directory rename verification compared all 15 file hashes before and after the move. Build-system checks passed, including source paths, Windows isolation and APK/JAR/source matching.
 - Both APK signing certificates match 2.0.7, and zip alignment checks passed. APKs remain compatible with in-place updates using the same application IDs.
 - Full Windows/TLS/UI suite: `build/test-59c44d4fa721411da60d486d20b93839` — passed. The first off-screen rename-focus check was rechecked independently and in the complete rerun without changing dialog code.
@@ -72,7 +118,7 @@ The 2.0.4 release artifacts were checked for:
 - both APK `versionName`: `2.0.4`, `versionCode`: `24`;
 - APK metadata, v3 signatures, zip alignment, and matching release certificate;
 - the Windows sidecar name `TVText-2.0.4.exe.config`;
-- a source tree with tests grouped under `tests/android-tv/`, `tests/android/`, and `tests/windows/`.
+- a source tree with tests grouped under `tests/android-tv/`, `tests/android-mobile/`, and `tests/windows/`.
 
 After the test-tree reorganization, the complete Windows/TV suite and the mobile JVM core suite passed on the release code. The 2.0.4 build is a version-only rebuild; no protocol or UI behavior changed.
 

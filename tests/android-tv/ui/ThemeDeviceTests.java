@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import com.tvtext.app.BridgeRuntime;
 import com.tvtext.app.MainActivity;
+import com.tvtext.app.ReceiverDialogs;
 import com.tvtext.app.LegacyInputBridge;
 import com.tvtext.app.Protocol;
 import com.tvtext.app.TvTheme;
@@ -43,7 +44,7 @@ public final class ThemeDeviceTests extends Instrumentation {
     private static void check(boolean condition,String message){if(!condition)throw new AssertionError(message);}
     @Override public void onCreate(Bundle arguments){super.onCreate(arguments);start();}
     private void ui(Runnable action){runOnMainSync(action);waitForIdleSync();}
-    private Object field(String name){try{java.lang.reflect.Field f=MainActivity.class.getDeclaredField(name);f.setAccessible(true);return f.get(activity);}catch(Exception e){throw new RuntimeException(e);}}
+    private Object field(String name){if(name.equals("dialog"))return ((ReceiverDialogs)field("dialogs")).getCurrent();try{java.lang.reflect.Field f=MainActivity.class.getDeclaredField(name);f.setAccessible(true);return f.get(activity);}catch(Exception e){throw new RuntimeException(e);}}
     private void update(){ui(()->{try{java.lang.reflect.Method m=MainActivity.class.getDeclaredMethod("update");m.setAccessible(true);m.invoke(activity);}catch(Exception e){throw new RuntimeException(e);}});}
     private UiAutomation automation(){return getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES);}
     private String shell(String command){
@@ -214,7 +215,13 @@ public final class ThemeDeviceTests extends Instrumentation {
             ui(()->((View)field("keyboardButton")).performClick());
             AlertDialog reopened=(AlertDialog)field("dialog");
             check(((EditText)reopened.getWindow().getDecorView().findViewWithTag("keyboard-test-input")).getText().length()==0,"test text is not retained");
-            ui(()->reopened.getWindow().getDecorView().findViewWithTag("keyboard-test-close").performClick());
+            ActivityMonitor recreation=addMonitor(MainActivity.class.getName(),null,false);ui(activity::recreate);
+            activity=(MainActivity)waitForMonitorWithTimeout(recreation,10000);removeMonitor(recreation);check(activity!=null,"recreation while keyboard dialog is open");waitForIdleSync();
+            check(!reopened.isShowing()&&field("dialog")==null&&!MainActivity.Companion.getKeyboardTestOpen(),"destroy dismisses the dialog and closes the permitted test target");
+            ui(()->((View)field("keyboardButton")).performClick());
+            AlertDialog afterRecreation=(AlertDialog)field("dialog");
+            check(((EditText)afterRecreation.getWindow().getDecorView().findViewWithTag("keyboard-test-input")).getText().length()==0,"recreated dialog never retains test input");
+            ui(()->afterRecreation.getWindow().getDecorView().findViewWithTag("keyboard-test-close").performClick());
             toggleTheme(false);openConnections();capture("TVText-TV-light-connections.png");closeConnections();toggleTheme(true);
             ui(()->((Button)field("pairButton")).performClick());
             String connectionHint=((TextView)field("detail")).getText().toString();

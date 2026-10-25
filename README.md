@@ -51,9 +51,9 @@ Optional parameters are `-Jdk`, `-Kotlin`, `-Output`, and `-Target All|TV|Mobile
 
 The build creates:
 
-- `TVText-TV-2.0.8.apk` for the TV;
-- `TVText-Mobile-2.0.8.apk` for phones and tablets;
-- `TVText-2.0.8.exe` and `TVText-2.0.8.exe.config` for Windows.
+- `TVText-TV-2.0.9.apk` for the TV;
+- `TVText-Mobile-2.0.9.apk` for phones and tablets;
+- `TVText-2.0.9.exe` and `TVText-2.0.9.exe.config` for Windows.
 
 The first build creates an APK signing key in `.local/`. Keep `signing.p12` and its password outside source control and back them up privately. A fresh clone without that key creates a different signing identity, so an already installed APK must be removed before installing that independent build.
 
@@ -70,10 +70,10 @@ For the real Android UI/instrumentation suite, pass an explicitly named isolated
 ```powershell
 .\test-mobile.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
-  -AppApk '.\dist\TVText-Mobile-2.0.8.apk'
+  -AppApk '.\dist\TVText-Mobile-2.0.9.apk'
 ```
 
-Test sources are grouped by target: `tests/android-tv/` contains TV engine and accessibility-fixture checks, `tests/android/` contains phone/tablet checks, and `tests/windows/` contains Windows client and layout checks. The scripts use local TLS fixtures on `127.0.0.1`; they do not use saved TV credentials or an external network.
+Test sources are grouped by target: `tests/android-tv/` contains TV engine and accessibility-fixture checks, `tests/android-mobile/` contains phone/tablet checks, and `tests/windows/` contains Windows client and layout checks. The scripts use local TLS fixtures on `127.0.0.1`; they do not use saved TV credentials or an external network.
 
 The suite covers framing and UTF-8 limits, pairing expiry and lockout, certificate pinning, token revocation, idempotency, cancellation and deadlines, IPv4/IPv6 handling, mDNS resource cleanup, DPAPI and encrypted profile storage, Windows DPI/layout and keyboard routing, mobile NSD/Keystore storage, rotation, draft preservation, and multi-TV isolation. Device tests run only on an explicitly named emulator.
 
@@ -94,31 +94,31 @@ The TV listens on TCP 45831 over IPv4. The receiver advertises and accepts IPv4 
 ## Source layout
 
 ```text
-android-tv/       TV receiver
-android-mobile/   phone/tablet sender
-windows/          Windows sender
-docs/images/      README screenshots
-docs/changes/     platform change logs
-docs/guides/      user guides
-docs/testing/     test documentation
-tests/android-tv/ TV engine and accessibility fixture tests
-tests/android/    phone/tablet tests
-tests/windows/    Windows client and layout tests
-tests/tooling/      build and artifact consistency checks
-scripts/          shared build/test helpers
-version.json      application version and Android version code
-toolchain.json    pinned Android/JVM tools
-build.ps1         build all or one target
-test.ps1          Windows/TV tests
-test-mobile.ps1   mobile JVM and device tests
-test-tv-ui.ps1    TV device tests
+android-tv/            TV receiver
+android-mobile/        phone/tablet sender
+windows/               Windows sender
+docs/images/           README screenshots
+docs/changes/          platform change logs
+docs/guides/           user guides
+docs/testing/          test documentation
+tests/android-tv/      TV engine and accessibility fixture tests
+tests/android-mobile/  phone/tablet tests
+tests/windows/         Windows client and layout tests
+tests/tooling/         build and artifact consistency checks
+scripts/               shared build/test helpers
+version.json           application version and Android version code
+toolchain.json         pinned Android/JVM tools
+build.ps1              build all or one target
+test.ps1               Windows/TV tests
+test-mobile.ps1        mobile JVM and device tests
+test-tv-ui.ps1         TV device tests
 ```
 
 Project and user documentation: [Russian README](README.ru.md), [user guide](docs/guides/USER_GUIDE.md), [Russian user guide](docs/guides/USER_GUIDE.ru.md), [test report](docs/testing/TESTS.md), and [Russian test report](docs/testing/TESTS.ru.md). Platform change logs are in `docs/changes/`.
 
 ## GitHub and releases
 
-Use this directory as the repository root. `.gitignore` excludes build output, emulator state, generated test results, signing material, and release binaries. Keep APK and EXE files in a GitHub Release rather than source commits. The Windows 2.0.8 release must keep `TVText-2.0.8.exe.config` beside the EXE. The source is released under the MIT License in `LICENSE`.
+Use this directory as the repository root. `.gitignore` excludes build output, emulator state, generated test results, signing material, and release binaries. Keep APK and EXE files in a GitHub Release rather than source commits. The Windows 2.0.9 release must keep `TVText-2.0.9.exe.config` beside the EXE. The source is released under the MIT License in `LICENSE`.
 
 ## Known limits
 

@@ -1,5 +1,23 @@
 # Windows EXE changes
 
+## 26 October 2026 — local version 2.0.9 rebuild
+
+- Rebuilt Windows with assembly/file/product version 2.0.9.0 generated from `version.json`, including the current sender-workflow refactoring.
+- Output: `outputs/TVText-2.0.9/TVText-2.0.9.exe`, 110,080 bytes, plus its `.exe.config` sidecar. EXE SHA-256: `914f26c7d55d3b48cc288e456bcd3d0026603a750921dcf0106227364290876d`.
+- Build tooling checks passed: `build/build-tests-fb0fa9ba51384182950c9e77c0c881e8`, including Windows-only dependency isolation and derived-version validation.
+- The output directory contains exactly four application assets. APK build records, checksums and verification metadata remain local under `build/rebuild-2.0.9/`.
+- Previous 2.0.8 artifacts, Git commits/tags and GitHub releases were not changed.
+
+## 26 October 2026 — sender scenarios separated from the window
+
+- Added `SenderWorkflow.cs` for discovery, certificate probing, pairing validation, sending, verified address recovery, remote revocation and explicit persistence results. Transport/discovery/storage dependencies can be substituted in tests; the workflow does not depend on Windows Forms.
+- `MainForm` retains layout, prompts, current selection/lifetime checks and rendering. Recovery returns a proposal which is applied only while the initiating selection is still current. Failed sends never replay text.
+- Preserved existing profile names after pairing, including an advertisement without a device ID. Removed the unused legacy saved-profiles dialog, which no longer had callers.
+- Added direct workflow tests for confirmation, one bounded recovery, certificate/identity rejection, pairing validation, save failure, revocation and cancellation. The existing Windows/TLS/DPI/focus suites passed.
+- Compared 35 Windows UI snapshots with the previous verified build: every compared image is pixel-identical.
+- Version metadata remains 2.0.8. Local verification builds are under `build/refactor-final/`; published output files and GitHub refs are unchanged.
+- Final Windows/TLS/DPI/focus/UI suite: `build/test-c87d9cf97ecc491aa862334e8b96342b` — passed.
+
 ## 25 October 2026 — persistence warnings and reliable release checks
 
 - Selection, pairing and verified address updates use one save path. A failed disk write keeps the connection usable in the session and adds a localized per-TV warning; clearing ordinary status cannot silently erase it. Successful saving or unpairing clears the warning.

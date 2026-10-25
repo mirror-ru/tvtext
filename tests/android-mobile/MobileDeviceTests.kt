@@ -34,8 +34,7 @@ class MobileDeviceTests : Instrumentation() {
     override fun callActivityOnStart(activity:Activity) {
         super.callActivityOnStart(activity)
         if(activity is MainActivity && !initialScans.containsKey(activity)) {
-            val scanning=MainActivity::class.java.getDeclaredField("scanning").apply { isAccessible=true }
-            initialScans[activity]=scanning.getBoolean(activity)
+            initialScans[activity]=controller(activity).scanning
         }
     }
     private fun ui(action: ()->Unit) {
@@ -63,14 +62,15 @@ class MobileDeviceTests : Instrumentation() {
         try { target.dispatchTouchEvent(event) } finally { event.recycle() }
     }
     private fun field(name: String): Any? = MainActivity::class.java.getDeclaredField(name).apply { isAccessible=true }.get(activity)
+    private fun controller(target: MainActivity = activity) = MainActivity::class.java.getDeclaredField("controller").apply { isAccessible=true }.get(target) as SenderController
     private fun waitUntil(condition:()->Boolean) {
         val deadline=System.currentTimeMillis()+15000
         while(!condition()) { check(System.currentTimeMillis()<deadline) { "Timed out" }; Thread.sleep(30); waitForIdleSync() }
     }
-    private fun idle() = waitUntil { field("busy")==false }
+    private fun idle() = waitUntil { controller().busy==false }
     private fun input() = view("text-input") as EditText
     private fun draft(value: String) = ui { input().setText(value) }
-    private fun dialog() = field("dialog") as? AlertDialog ?: error("Missing dialog")
+    private fun dialog() = (field("dialogs") as SenderDialogs).current ?: error("Missing dialog")
     private fun caption(id:String) = view("tv-$id").findViewWithTag<TextView>("pair-label")
     private fun legacyProfiles(values:List<Tv>):ByteArray {
         val clear=java.io.ByteArrayOutputStream()
@@ -121,7 +121,7 @@ class MobileDeviceTests : Instrumentation() {
                     waitForIdleSync();check(initialScans[activity]==true) { "First launch without pairings must discover TVs" }
                     check(activity.window.decorView.findViewWithTag<View>("status")==null)
                     check(view("list-error").textIsEmpty())
-                    waitUntil { field("scanning")==false };check(field("refreshAnimation")==null)
+                    waitUntil { controller().scanning==false };check(field("refreshAnimation")==null)
                     ui { activity.finish() }
                     store.save(linkedMapOf(a.id to a,b.id to b)); check(store.load().values.toList()==listOf(a,b))
                     check(store.loadState().names[b.id]==b.alias && store.loadState().profiles[b.id]?.alias=="") { "Aliases are stored separately from paired profiles" }
@@ -141,7 +141,7 @@ class MobileDeviceTests : Instrumentation() {
                     check(scanDone.await(10,TimeUnit.SECONDS)); check(found.contains(a.id)&&found.contains(b.id)) { "NSD did not find both local TV services: $found" }
                     activity=startActivitySync(Intent(targetContext,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MainActivity
                     waitForIdleSync()
-                    check(field("scanning")==false&&field("refreshAnimation")==null) { "Saved pairings must skip startup discovery" }
+                    check(controller().scanning==false&&field("refreshAnimation")==null) { "Saved pairings must skip startup discovery" }
                     check(field("darkMode")==false)
                     // Real touch cancellation must preserve both recipient and draft.
                     click("tv-${a.id}");draft("Черновик для первого ТВ");ui { input().requestFocus() }
@@ -159,7 +159,7 @@ class MobileDeviceTests : Instrumentation() {
                         motion(refresh,MotionEvent.ACTION_MOVE,-200f,refresh.height/2f,start)
                         motion(refresh,MotionEvent.ACTION_UP,-200f,refresh.height/2f,start)
                     }
-                    waitForIdleSync();check(field("scanning")==false) { "Dragging outside a button cancels its action" }
+                    waitForIdleSync();check(controller().scanning==false) { "Dragging outside a button cancels its action" }
                     draft("")
                     // Exercise this state transition synchronously, before the
                     // real scan deadline. Native pointer dispatch is covered by
@@ -167,7 +167,7 @@ class MobileDeviceTests : Instrumentation() {
                     ui {
                         val refresh=view("refresh")
                         check(refresh.performClick())
-                        check(field("scanning")==true)
+                        check(controller().scanning==true)
                         val animation=field("refreshAnimation") as android.animation.ObjectAnimator
                         check(animation.isRunning)
                         animation.currentPlayTime=250
@@ -176,9 +176,9 @@ class MobileDeviceTests : Instrumentation() {
                         val theme=view("theme")
                         check(theme.performClick())
                         check(field("darkMode")==true) { "A theme tap switches mode once" }
-                        check(field("scanning")==true) { "Theme rebuild preserves the active scan" }
+                        check(controller().scanning==true) { "Theme rebuild preserves the active scan" }
                     }
-                    waitUntil { field("scanning")==false };ui { check((view("refresh") as Artwork).glyphRotation==0f) }
+                    waitUntil { controller().scanning==false };ui { check((view("refresh") as Artwork).glyphRotation==0f) }
                     click("theme");check(field("darkMode")==false)
                     val list=view("tv-list") as ScrollView
                     ui { check(list.height==3*(view("tv-${a.id}").height)+(8*activity.resources.displayMetrics.density+.5f).toInt()) { "Reserve three TV slots" } }
@@ -191,14 +191,14 @@ class MobileDeviceTests : Instrumentation() {
                     click("tv-${extra[0].id}");check(field("selectedId")==extra[0].id) { "one click selects the TV immediately" };check(caption(extra[0].id).text=="Нажмите на кнопку «Подключить»")
                     check(!input().hasFocus()&&!view("send").isEnabled)
                     ui { catalog.beginDiscovery();advertised.forEach { catalog.discover(it) };render.invoke(activity) }
-                    click("refresh");check(field("scanning")==true)
+                    click("refresh");check(controller().scanning==true)
                     val coveringMonitor=addMonitor(MainActivity::class.java.name,null,false)
                     ui { activity.startActivity(Intent(targetContext,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)) }
                     val covering=waitForMonitorWithTimeout(coveringMonitor,10000) as? MainActivity ?: error("Covering activity did not open")
                     removeMonitor(coveringMonitor)
-                    waitUntil { field("scanning")==false }
+                    waitUntil { controller().scanning==false }
                     check(field("refreshAnimation")==null&&view("refresh").isEnabled) { "Stopping discovery must release the animation and re-enable Refresh" }
-                    ui { covering.finish() };waitForIdleSync();check(field("scanning")==false)
+                    ui { covering.finish() };waitForIdleSync();check(controller().scanning==false)
                     val unicode="Привет с телефона 😀 中文\nВторая строка"
                     click("tv-${a.id}"); draft(unicode); click("send"); idle()
                     check(first.received==listOf(unicode)&&second.received.isEmpty()); check(input().text.isEmpty())
@@ -214,11 +214,11 @@ class MobileDeviceTests : Instrumentation() {
                     check(store.load()[a.id]?.alias=="Гостиная" && store.load()[a.id]?.token==a.token)
                     click("tv-${b.id}"); click("connect"); ui { dialog().getButton(AlertDialog.BUTTON_POSITIVE).performClick() }; idle()
                     check(store.load()[b.id]?.paired!=true && SenderClient.exchange(b,2).code==1)
-                    waitUntil { field("scanning")==false }
+                    waitUntil { controller().scanning==false }
                     ui { catalog.beginDiscovery();catalog.discover(a.copy(token="",fingerprint=""));render.invoke(activity) }
                     check(activity.window.decorView.findViewWithTag<View>("tv-${b.id}")==null) { "An absent renamed TV disappears after unpairing" }
                     check(store.loadState().names[b.id]=="Спальня" && !store.loadState().profiles.containsKey(b.id)) { "Unpair keeps only the local name, never an unpaired profile" }
-                    click("refresh");waitUntil { field("scanning")==false }
+                    click("refresh");waitUntil { controller().scanning==false }
                     check(view("tv-${b.id}").contentDescription.toString().contains("Спальня")) { "A rediscovered TV recovers its local name" }
                     // Pair through the real dialogs, including explicit fingerprint confirmation.
                     click("tv-${b.id}"); click("connect")
@@ -248,7 +248,7 @@ class MobileDeviceTests : Instrumentation() {
                     ui { activity.recreate() }
                     activity=waitForMonitorWithTimeout(monitor,10000) as? MainActivity ?: error("Recreation failed")
                     removeMonitor(monitor);waitForIdleSync()
-                    check(field("darkMode")==true&&field("scanning")==false)
+                    check(field("darkMode")==true&&controller().scanning==false)
                     check(input().text.toString()=="Новый черновик"&&input().selectionStart==2&&input().selectionEnd==5)
                     click("tv-${a.id}"); draft("Дюна: Часть вторая")
                     capture("TVText-Mobile-dark.png")

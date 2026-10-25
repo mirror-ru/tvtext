@@ -25,6 +25,7 @@ namespace TvText
         private readonly Timer refreshAnimation=new Timer();
         private readonly Stopwatch refreshClock=Stopwatch.StartNew();
         private readonly CancellationTokenSource shutdown=new CancellationTokenSource();
+        private readonly SenderWorkflow workflow=new SenderWorkflow();
         private CancellationTokenSource selectionWork;
         private Connection connection;
         private readonly List<Connection> profiles;
@@ -238,9 +239,9 @@ namespace TvText
         }
         private bool SaveConnection(Connection saved)
         {
-            try { saved.Save(); unsavedConnections.Remove(saved.DeviceId); return true; }
-            catch { unsavedConnections.Add(saved.DeviceId); return false; }
-            finally { devices.Invalidate(); }
+            bool success=workflow.TrySave(saved);
+            if(success)unsavedConnections.Remove(saved.DeviceId);else unsavedConnections.Add(saved.DeviceId);
+            devices.Invalidate();return success;
         }
         private bool ApplyEndpoint(Connection saved,string endpoint)
         {
@@ -290,11 +291,8 @@ namespace TvText
             {
                 try
                 {
-                    Reply reply=await Task.Run(delegate{return Client.Exchange(saved.Endpoint,saved.Fingerprint,4,saved.Token,"","",shutdown.Token);});
+                    remoteNotified=await workflow.RevokeAsync(saved,shutdown.Token);
                     if(closing)return;
-                    Client.VerifyIdentity(reply,saved);
-                    // AUTH means the token was already removed on the TV, which is a successful end state.
-                    remoteNotified=reply.Code==0||reply.Code==1;
                 }
                 catch(Exception){if(closing)return;}
                 try{RemoveProfile(removedId);}
@@ -335,60 +333,6 @@ namespace TvText
             else localNames=DeviceNames.Set(id.ToString(),name);
             RebuildDevices(null);
         }
-        private void ShowProfiles()
-        {
-            using(Form dialog=new Form())
-            {
-                dialog.Text=UiText.T("connected_tvs");dialog.StartPosition=FormStartPosition.CenterParent;dialog.FormBorderStyle=FormBorderStyle.FixedDialog;
-                dialog.MinimizeBox=false;dialog.MaximizeBox=false;dialog.ShowInTaskbar=false;dialog.ClientSize=new Size(470,360);dialog.BackColor=Theme.Canvas;
-                TableLayoutPanel root=new TableLayoutPanel{Dock=DockStyle.Fill,Padding=new Padding(18),ColumnCount=1,RowCount=3,BackColor=Theme.Canvas};
-                root.RowStyles.Add(new RowStyle(SizeType.Absolute,34));root.RowStyles.Add(new RowStyle(SizeType.Percent,100));root.RowStyles.Add(new RowStyle(SizeType.Absolute,42));
-                root.Controls.Add(new Label{Text=UiText.T("saved_connections"),Dock=DockStyle.Fill,Font=new Font("Segoe UI",12F,FontStyle.Bold),ForeColor=Theme.Ink,TextAlign=ContentAlignment.MiddleLeft},0,0);
-                FlowLayoutPanel list=new FlowLayoutPanel{Dock=DockStyle.Fill,FlowDirection=FlowDirection.TopDown,WrapContents=false,AutoScroll=true,BackColor=Theme.Surface,Padding=new Padding(10),Margin=Padding.Empty};
-                root.Controls.Add(list,0,1);
-                NiceButton close=new NiceButton{Text=UiText.T("close"),Dock=DockStyle.Fill,Margin=new Padding(0,7,0,0)};close.Click+=delegate{dialog.Close();};root.Controls.Add(close,0,2);
-                Action rebuild=null;rebuild=delegate
-                {
-                    list.SuspendLayout();list.Controls.Clear();
-                    if(profiles.Count==0)
-                    {
-                        Panel empty=new Panel{Name="EmptyState",Width=Math.Max(100,list.ClientSize.Width-list.Padding.Horizontal),Height=Math.Max(100,list.ClientSize.Height-list.Padding.Vertical),BackColor=Theme.Surface,Margin=Padding.Empty};
-                        empty.Controls.Add(new Label{Text=UiText.T("no_saved_tvs"),Dock=DockStyle.Fill,ForeColor=Theme.Muted,TextAlign=ContentAlignment.MiddleCenter,Padding=new Padding(8)});
-                        list.Controls.Add(empty);
-                    }
-                    else foreach(Connection profile in profiles.ToArray())
-                    {
-                        Panel item=new Panel{Width=Math.Max(100,list.ClientSize.Width-20),Height=56,BackColor=Theme.Row,Margin=new Padding(0,0,0,8)};
-                        item.Paint+=delegate(object sender,PaintEventArgs e)
-                        {
-                            using(Pen border=new Pen(Theme.Border))e.Graphics.DrawRectangle(border,0,0,item.Width-1,item.Height-1);
-                        };
-                        Label name=new Label{Text=profile.Name,AutoEllipsis=true,Font=new Font("Segoe UI",10F,FontStyle.Bold),ForeColor=Theme.Ink,Location=new Point(12,7),Size=new Size(Math.Max(100,item.Width-72),23),Anchor=AnchorStyles.Left|AnchorStyles.Top|AnchorStyles.Right};
-                        Label id=new Label{Text=profile.DeviceId.Length>=6?profile.DeviceId.Substring(0,6):profile.Endpoint,AutoEllipsis=true,Font=new Font("Segoe UI",8F),ForeColor=Theme.Muted,Location=new Point(12,31),Size=new Size(Math.Max(100,item.Width-72),18),Anchor=AnchorStyles.Left|AnchorStyles.Top|AnchorStyles.Right};
-                        NiceButton forget=new NiceButton{Glyph="delete",Danger=true,Size=new Size(40,40),Location=new Point(Math.Max(0,item.Width-48),8),Anchor=AnchorStyles.Top|AnchorStyles.Right,AccessibleName=UiText.T("delete")};
-                        forget.Click+=delegate
-                        {
-                            if(MessageBox.Show(dialog,UiText.T("confirm_delete",profile.Name),UiText.T("delete_title"),MessageBoxButtons.YesNo,MessageBoxIcon.Question,MessageBoxDefaultButton.Button2)!=DialogResult.Yes)return;
-                            try{RemoveProfile(profile.DeviceId);}
-                            catch(Exception e){MessageBox.Show(dialog,e.Message,UiText.T("delete_failed"),MessageBoxButtons.OK,MessageBoxIcon.Error);return;}
-                            UpdateControls();rebuild();
-                        };
-                        item.Controls.Add(forget);item.Controls.Add(name);item.Controls.Add(id);list.Controls.Add(item);
-                    }
-                    list.ResumeLayout(true);
-                };
-                list.Resize+=delegate
-                {
-                    foreach(Control item in list.Controls)if(item is Panel)
-                    {
-                        item.Width=Math.Max(100,list.ClientSize.Width-list.Padding.Horizontal-SystemInformation.VerticalScrollBarWidth-2);
-                        if(item.Name=="EmptyState")item.Height=Math.Max(100,list.ClientSize.Height-list.Padding.Vertical);
-                        foreach(Control child in item.Controls)if(child is NiceButton)child.Location=new Point(Math.Max(0,item.Width-child.Width-8),8);
-                    }
-                };
-                rebuild();dialog.Controls.Add(root);dialog.AcceptButton=close;dialog.CancelButton=close;dialog.ShowDialog(this);
-            }
-        }
         private void RebuildDevices(string preferredId)
         {
             DiscoveredTv previous=Selected;
@@ -414,10 +358,10 @@ namespace TvText
             int revision=selectionRevision;
             try
             {
-                List<DiscoveredTv> list=await Discovery.FindAsync(5000,shutdown.Token);if(closing)return;discovered=list;suppressedDeviceId=String.Empty;
+                List<DiscoveredTv> list=await workflow.DiscoverAsync(5000,shutdown.Token);if(closing)return;discovered=list;suppressedDeviceId=String.Empty;
                 if(busy)return;
                 Connection saved=connection;CancellationToken token=selectionWork.Token;int peerRevision=selectionRevision;
-                DiscoveredTv relocated=saved.Token.Length>0&&ActiveSelection()?await ConnectionResolver.FindVerifiedAsync(saved,list,token):null;
+                DiscoveredTv relocated=saved.Token.Length>0&&ActiveSelection()?await workflow.VerifyAsync(saved,list,token):null;
                 if(closing)return;
                 if(relocated!=null&&!busy&&peerRevision==selectionRevision&&ActiveSelection()&&Object.ReferenceEquals(saved,connection))
                 {ApplyEndpoint(saved,relocated.Endpoint);ClearStatus();}
@@ -442,18 +386,15 @@ namespace TvText
                 {if(dialog.ShowDialog(this)!=DialogResult.OK)return;pairingCode=dialog.Code;}
                 foreach(DiscoveredTv found in discovered)if(found.DeviceId==tv.DeviceId){host=found.Endpoint;break;}
                 CancellationToken token=shutdown.Token;
-                ShowMessage(UiText.T("pairing"),false);string fingerprint=await Task.Run(delegate{return Client.Probe(host,token);});if(closing)return;
+                ShowMessage(UiText.T("pairing"),false);string fingerprint=await workflow.ProbeAsync(host,token);if(closing)return;
                 if(fingerprint!=connection.Fingerprint)
                 {
                     DialogResult answer=MessageBox.Show(this,UiText.T("fingerprint_question",Client.ShortFingerprint(fingerprint)),UiText.T("fingerprint_title"),MessageBoxButtons.YesNo,MessageBoxIcon.Question,MessageBoxDefaultButton.Button1);
                     if(answer!=DialogResult.Yes){ClearStatus();return;}
                 }
-                Reply reply=await Task.Run(delegate{return Client.Exchange(host,fingerprint,1,pairingCode,"","",token);});if(closing)return;
-                if(reply.Code!=0||reply.Token.Length!=64){ShowMessage(UiText.ResponseMessage(reply.Code==0?6:reply.Code),true);return;}
-                Guid deviceId;if(!Guid.TryParse(reply.DeviceId,out deviceId)){ShowMessage(UiText.T("update_apk"),true);return;}
-                if(tv.DeviceId.Length>0&&tv.DeviceId!=deviceId.ToString()){ShowMessage(UiText.T("changed_id"),true);return;}
-                string previousName=null;foreach(Connection profile in profiles)if(profile.DeviceId==deviceId.ToString())previousName=profile.Name;
-                connection=new Connection{Endpoint=host,Fingerprint=fingerprint,Token=reply.Token,DeviceId=deviceId.ToString(),Name=previousName??tv.Name};
+                SenderWorkflow.PairResult paired=await workflow.PairAsync(tv,host,fingerprint,pairingCode,profiles,token);if(closing)return;
+                if(paired.Connection==null){ShowMessage(paired.ErrorKey!=null?UiText.T(paired.ErrorKey):UiText.ResponseMessage(paired.Code),true);return;}
+                connection=paired.Connection;
                 if(suppressedDeviceId==connection.DeviceId)suppressedDeviceId=String.Empty;
                 pairingRequired.Remove(connection.DeviceId);
                 int profileIndex=profiles.FindIndex(delegate(Connection profile){return profile.DeviceId==connection.DeviceId;});
@@ -467,55 +408,41 @@ namespace TvText
         }
         private async Task SendAsync()
         {
-            if(busy||closing||!ActiveSelection()||pairingRequired.Contains(connection.DeviceId)||input.Text.Length==0)return;string text=input.Text;
+            if(busy||closing||!ActiveSelection()||pairingRequired.Contains(connection.DeviceId)||input.Text.Length==0)return;
+            string text=input.Text;
             if(Encoding.UTF8.GetByteCount(text)>Client.MaxText){ShowMessage(UiText.T("too_long"),true);return;}
-            Connection saved=connection;string id=Guid.NewGuid().ToString();busy=true;CancellationToken token=shutdown.Token;Exception sendError=null;UpdateControls();
+            Connection saved=connection;int revision=selectionRevision;busy=true;UpdateControls();
             try
             {
-                Reply reply=await Task.Run(delegate{return Client.Exchange(saved.Endpoint,saved.Fingerprint,3,saved.Token,id,text,token);});if(closing)return;
-                Client.VerifyIdentity(reply,saved);
-                if(reply.Code==1&&pairingRequired.Add(saved.DeviceId))devices.Invalidate();
-                if(reply.Code==0)ClearStatus();else ShowMessage(UiText.ResponseMessage(reply.Code),true);
-                if(reply.Code==0&&input.Text==text)input.Clear();input.Focus();
+                SenderWorkflow.SendResult result=await workflow.SendAsync(saved,text,shutdown.Token);
+                if(closing||revision!=selectionRevision||!Object.ReferenceEquals(saved,connection))return;
+                if(result.Error==null)
+                {
+                    Reply reply=result.Reply;
+                    if(reply.Code==1&&pairingRequired.Add(saved.DeviceId))devices.Invalidate();
+                    if(reply.Code==0)ClearStatus();else ShowMessage(UiText.ResponseMessage(reply.Code),true);
+                    if(reply.Code==0&&input.Text==text)input.Clear();input.Focus();
+                }
+                else
+                {
+                    if(result.Error is AuthenticationException&&pairingRequired.Add(saved.DeviceId))devices.Invalidate();
+                    string message=ErrorText(result.Error,true);
+                    if(result.Recovery!=null)
+                    {
+                        discovered=result.Recovery.Devices;suppressedDeviceId=String.Empty;
+                        if(result.Recovery.Verified!=null)
+                        {
+                            bool persisted=ApplyEndpoint(saved,result.Recovery.Verified.Endpoint);
+                            message=UiText.T(persisted?"endpoint_updated":"endpoint_updated_save_failed");
+                        }
+                        RebuildDevices(saved.DeviceId);
+                    }
+                    ShowMessage(message,true);
+                }
             }
             catch(OperationCanceledException){}
-            catch(Exception e)
-            {
-                sendError=e;
-            }
-            if(sendError!=null&&!closing)
-            {
-                if(sendError is AuthenticationException&&pairingRequired.Add(saved.DeviceId))devices.Invalidate();
-                EndpointRefresh refreshed=EndpointRefresh.NotFound;
-                if(IsNetworkError(sendError)&&!(sendError is AuthenticationException))refreshed=await RefreshEndpointAsync(saved,token);
-                ShowMessage(refreshed==EndpointRefresh.SessionOnly?UiText.T("endpoint_updated_save_failed"):
-                    refreshed==EndpointRefresh.Saved?UiText.T("endpoint_updated"):ErrorText(sendError,true),true);
-            }
-            busy=false;UpdateControls();
+            finally{busy=false;UpdateControls();}
         }
-        private enum EndpointRefresh { NotFound,Saved,SessionOnly }
-        private async Task<EndpointRefresh> RefreshEndpointAsync(Connection saved,CancellationToken token)
-        {
-            if(closing||saved==null||saved.DeviceId.Length==0)return EndpointRefresh.NotFound;
-            int revision=selectionRevision;
-            try
-            {
-                List<DiscoveredTv> list=await Discovery.FindAsync(2500,token);
-                if(closing||revision!=selectionRevision||!Object.ReferenceEquals(saved,connection))return EndpointRefresh.NotFound;
-                discovered=list;suppressedDeviceId=String.Empty;
-                DiscoveredTv relocated=await ConnectionResolver.FindVerifiedAsync(saved,list,token);
-                if(closing||revision!=selectionRevision||!Object.ReferenceEquals(saved,connection))return EndpointRefresh.NotFound;
-                RebuildDevices(saved.DeviceId);
-                if(relocated==null)return EndpointRefresh.NotFound;
-                bool persisted=ApplyEndpoint(saved,relocated.Endpoint);
-                RebuildDevices(saved.DeviceId);
-                return persisted?EndpointRefresh.Saved:EndpointRefresh.SessionOnly;
-            }
-            catch(OperationCanceledException){return EndpointRefresh.NotFound;}
-            catch{return EndpointRefresh.NotFound;}
-        }
-        private static bool IsNetworkError(Exception error)
-        {return error is IOException||error is SocketException||error is TimeoutException;}
         private static string ErrorText(Exception error,bool sending)
         {
             if(error is AuthenticationException)return UiText.T("auth_error");

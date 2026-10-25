@@ -2,7 +2,6 @@
 package com.tvtext.mobile.app
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.content.Context
@@ -13,7 +12,6 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.graphics.drawable.ColorDrawable
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -26,31 +24,26 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.view.animation.LinearInterpolator
 import android.widget.*
-import java.io.IOException
 import java.util.Locale
-import java.util.UUID
 import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
     private val main = Handler(Looper.getMainLooper())
-    private val worker = Executors.newSingleThreadExecutor()
     private lateinit var store: ProfileStore
-    private lateinit var discovery: TvDiscovery
+    private lateinit var controller: SenderController
+    private lateinit var dialogs: SenderDialogs
     private lateinit var localized: Context
     private val catalog = ConnectionCatalog { connections, names -> store.saveState(connections, names) }
     private var selectedId = ""
     private var language = "ru"
     private var darkMode = false
     private var startupChecked = false
-    private var busy = false
-    private var scanning = false
-    private var storageHealthy = true
-    private var destroyed = false
-    private var sending = false
-    private var operation: Operation? = null
-    private var dialog: AlertDialog? = null
+    private val busy get() = controller.busy
+    private val scanning get() = controller.scanning
+    private val storageHealthy get() = controller.storageHealthy
+    private val destroyed get() = controller.destroyed
+    private val sending get() = controller.sending
     private var lastRows: List<Tv>? = null
-    private var afterScan: (() -> Unit)? = null
     private data class DeviceMessage(val key: String, val error: Boolean = false, val detail: String? = null)
     private val deviceMessages = mutableMapOf<String, DeviceMessage>()
     private var listMessage: DeviceMessage? = null
@@ -79,9 +72,20 @@ class MainActivity : Activity() {
         setTheme(resources.getIdentifier(if(darkMode) "AppTheme.Dark" else "AppTheme", "style", packageName))
         super.onCreate(state)
         language = getPreferences(MODE_PRIVATE).getString("language", "ru") ?: "ru"
-        store = ProfileStore(this); discovery = TvDiscovery(this)
+        store = ProfileStore(this)
+        controller = SenderController(catalog, TvDiscovery(this), Executors.newSingleThreadExecutor(),
+            { action -> main.post { action() } }, { devicesChanged ->
+                if(this::send.isInitialized && !destroyed) {
+                    if(devicesChanged)renderDevices()
+                    updateRefreshAnimation();updateControls()
+                }
+            }, { notice ->
+                if(notice.key==null)clearMessage(notice.target)
+                else message(notice.key,notice.error,notice.target ?: selectedId,notice.detail)
+            })
+        dialogs = SenderDialogs(this, { palette }, { text(it) })
         try { store.loadState().let { catalog.restore(it.profiles, it.names) } }
-        catch (_: Exception) { storageHealthy = false }
+        catch (_: Exception) { controller.storageFailed() }
         selectedId = state?.getString("selected") ?: getPreferences(MODE_PRIVATE).getString("selected", "").orEmpty()
         startupChecked = state?.getBoolean("startup-checked") ?: false
         buildUi(state?.getString("draft").orEmpty())
@@ -94,20 +98,13 @@ class MainActivity : Activity() {
         if(!startupChecked) { startupChecked = true; if(!catalog.hasPairings()) scan() }
     }
     override fun onStop() {
-        discovery.stop()
-        scanning = false
-        afterScan = null
-        updateRefreshAnimation()
-        updateControls()
+        controller.stopDiscovery()
         super.onStop()
     }
     override fun onDestroy() {
-        destroyed = true
+        controller.destroy()
         refreshAnimation?.cancel()
-        operation?.close()
-        discovery.stop()
-        dialog?.dismiss()
-        worker.shutdownNow()
+        dialogs.dismiss()
         main.removeCallbacksAndMessages(null)
         super.onDestroy()
     }
@@ -147,11 +144,6 @@ class MainActivity : Activity() {
                 super.onInitializeAccessibilityNodeInfo(host,info); info.className=android.widget.Button::class.java.name
             }
         }
-    }
-    private fun styleInput(editor: EditText) {
-        editor.setTextColor(ink);editor.setHintTextColor(muted);editor.highlightColor=palette.selected
-        editor.backgroundTintList=ColorStateList.valueOf(blue)
-        if(Build.VERSION.SDK_INT>=29) editor.textCursorDrawable?.mutate()?.setTint(blue)
     }
     private fun rebuildUi(focus: String) {
         val draft=input.text.toString();val start=input.selectionStart;val end=input.selectionEnd
@@ -218,7 +210,7 @@ class MainActivity : Activity() {
         textCard.add(label(text("text_prompt"),16f,ink,true))
         input = EditText(this).apply {
             tag = "text-input"; contentDescription = text("text_accessible"); textSize = 18f; setTextColor(ink)
-            styleInput(this)
+            EditorStyle.apply(this,palette)
             background = null; setPadding(0,dp(6),0,dp(4)); gravity = Gravity.TOP or Gravity.START
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
             imeOptions = EditorInfo.IME_ACTION_SEND or EditorInfo.IME_FLAG_NO_EXTRACT_UI
@@ -330,198 +322,26 @@ class MainActivity : Activity() {
             }
         } else { refreshAnimation?.cancel();refreshAnimation=null;(refresh as Artwork).glyphRotation=0f }
     }
-    private fun persist(action: () -> Unit): Boolean {
-        if (!storageHealthy) {
-            message("storage_error", true)
-            return false
-        }
-        return try {
-            action()
-            true
-        } catch (_: Exception) {
-            message("storage_error", true)
-            false
-        }
-    }
-    private fun scan(completion: (() -> Unit)? = null) {
-        if (scanning || busy || destroyed) return
-        // A scan is a fresh mDNS snapshot. Saved profiles remain visible, but
-        // unpaired devices from the previous scan must not survive if they are
-        // no longer advertised.
-        catalog.beginDiscovery()
-        lastRows = null
-        renderDevices()
-        scanning = true
-        afterScan = completion
-        updateRefreshAnimation()
-        updateControls()
-        discovery.start(
-            { tv ->
-                if (!destroyed) {
-                    catalog.discover(tv)
-                    renderDevices()
-                }
-            },
-            { success ->
-                if (!destroyed) {
-                    scanning = false
-                    updateRefreshAnimation()
-                    updateControls()
-                    if (!success) message("search_failed", true, detail = discovery.lastError)
-                    val done = afterScan
-                    afterScan = null
-                    done?.invoke()
-                }
-            }
-        )
-    }
-    private fun <T> work(action: (Operation) -> T, done: (T) -> Unit, failed: (Exception) -> Unit = { showError(it) }) {
-        if (busy || destroyed) return
-        busy = true
-        val task = Operation()
-        operation = task
-        updateControls()
-        worker.execute {
-            val result = runCatching { action(task) }
-            main.post {
-                if (!destroyed) {
-                    busy = false
-                    operation = null
-                    sending = false
-                    updateControls()
-                    result.fold({ done(it) }, { failed(it as? Exception ?: IOException(it)) })
-                }
-            }
-        }
-    }
-    private fun showError(error: Exception, target: String = selectedId) {
-        message(when(error) { is PinMismatch -> "need_pairing"; is InvalidReply -> "protocol_error"; is IllegalArgumentException -> "too_long"; else -> "offline" },true,target)
-    }
-    private fun showDialog(builder: AlertDialog.Builder, ready: (AlertDialog) -> Unit = {}) {
-        dialog?.dismiss(); dialog = builder.create().also { current ->
-            current.setOnShowListener {
-                current.window?.setBackgroundDrawable(background(palette.surface,22))
-                current.findViewById<TextView>(android.R.id.message)?.setTextColor(ink)
-                for(which in listOf(AlertDialog.BUTTON_NEGATIVE,AlertDialog.BUTTON_POSITIVE)) {
-                    current.getButton(which)?.apply {
-                        isAllCaps=false
-                        setTextColor(ColorStateList(arrayOf(intArrayOf(android.R.attr.state_enabled),intArrayOf()),intArrayOf(if(which==AlertDialog.BUTTON_POSITIVE) Color.WHITE else palette.buttonInk,muted)))
-                        background=RippleDrawable(ColorStateList.valueOf(palette.ripple),background(if(which==AlertDialog.BUTTON_POSITIVE) palette.primary else palette.button,12),null)
-                    }
-                }
-                ready(current)
-            }
-            current.setOnDismissListener { if(dialog === current) dialog = null }; current.show()
-        }
-    }
-    private fun dialogHeading(key: String): View = LinearLayout(this).apply {
-        gravity=Gravity.CENTER_VERTICAL;setPadding(dp(24),dp(22),dp(24),dp(14))
-        addView(Artwork(this@MainActivity,"tv",palette).apply { background=background(palette.icon,12) },LinearLayout.LayoutParams(dp(40),dp(40)))
-        addView(label(text(key),21f,ink,true),LinearLayout.LayoutParams(0,-2,1f).apply { leftMargin=dp(12) })
-    }
+    private fun scan(completion: (() -> Unit)? = null) = controller.scan(completion)
     private fun pair(tv: Tv) {
-        val body = column().apply { setPadding(dp(24),dp(4),dp(24),dp(8)) }
-        body.add(label(text("pair_hint"),14f,muted).apply { setLineSpacing(dp(3).toFloat(),1f) })
-        val code = EditText(this).apply {
-            tag="pair-code"; inputType=InputType.TYPE_CLASS_NUMBER; filters=arrayOf(InputFilter.LengthFilter(8)); textSize=24f; gravity=Gravity.CENTER
-            styleInput(this);setPadding(dp(12),dp(12),dp(12),dp(12)); backgroundTintList=null;background=background(palette.input,12,palette.border); hint=text("pair_code")
-            setSingleLine(); imeOptions=EditorInfo.IME_ACTION_DONE
-        }
-        body.add(code,top=18)
-        showDialog(AlertDialog.Builder(this).setCustomTitle(dialogHeading("pair_heading")).setView(body).setNegativeButton(text("cancel"),null).setPositiveButton(text("connect"),null)) { current ->
-            val submit = current.getButton(AlertDialog.BUTTON_POSITIVE); submit.isEnabled=false
-            code.addTextChangedListener(object:TextWatcher {
-                override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int)=Unit
-                override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) { submit.isEnabled=s?.matches(Regex("[0-9]{8}")) == true }
-                override fun afterTextChanged(s:Editable?)=Unit
-            })
-            submit.setOnClickListener {
-                val pin=code.text.toString(); if(!pin.matches(Regex("[0-9]{8}"))) return@setOnClickListener
-                current.dismiss();message("pairing",target=tv.id);work({ SenderClient.probe(tv.endpoint,it) }, { fingerprint -> confirmFingerprint(tv,pin,fingerprint) },{ showError(it,tv.id) })
-            }
-            code.setOnEditorActionListener { _, action, _ -> if(action==EditorInfo.IME_ACTION_DONE && submit.isEnabled) { submit.performClick(); true } else false }
-            code.requestFocus(); current.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
-        }
-    }
-    private fun confirmFingerprint(tv: Tv, pin: String, fingerprint: String) {
-        val body=column().apply { setPadding(dp(24),dp(8),dp(24),dp(8)) }
-        body.add(label(Wire.shortFingerprint(fingerprint),23f,blue,true).apply { typeface=Typeface.MONOSPACE; gravity=Gravity.CENTER; setPadding(0,dp(12),0,dp(12)); background=background(palette.button,12) })
-        body.add(label(text("fingerprint_hint"),14f,muted).apply { setLineSpacing(dp(3).toFloat(),1f) },top=16)
-        showDialog(AlertDialog.Builder(this).setTitle(text("fingerprint_title")).setView(body).setNegativeButton(text("cancel")) { _,_ -> clearMessage(tv.id) }.setPositiveButton(text("confirm")) { _,_ ->
-            val pinned=tv.copy(fingerprint=fingerprint)
-            work({ SenderClient.exchange(pinned,1,pin,operation=it) }, { reply ->
-                if(reply.code==0) {
-                    val paired=tv.copy(token=reply.token,fingerprint=fingerprint)
-                    if(persist { catalog.pair(paired) }) { selectedId=tv.id; lastRows=null;clearMessage(tv.id);input.requestFocus() }
-                } else replyMessage(reply.code,tv.id)
-            },{ showError(it,tv.id) })
-        })
-    }
-    private fun replyMessage(code: Int, target: String) {
-        if(code==0)clearMessage(target)
-        else message(when(code) { 1->"need_pairing";2->"pair_closed";3->"bad_pin";4->"no_field";5->"disabled";9->"uncertain";else->"protocol_error" },true,target)
+        dialogs.pair { pin -> controller.probe(tv) { fingerprint ->
+            dialogs.fingerprint(fingerprint, {
+                controller.pair(tv,pin,fingerprint) {
+                    selectedId=tv.id;lastRows=null;clearMessage(tv.id);input.requestFocus()
+                }
+            }, { clearMessage(tv.id) })
+        } }
     }
     private fun sendText() {
-        val tv=selected() ?: return; val draft=input.text.toString()
-        if(busy || !paired(tv) || draft.isEmpty()) return
-        if(runCatching { Wire.utf8(draft).size <= Wire.MAX_TEXT }.getOrDefault(false).not()) { message("too_long",true); return }
-        sending=true
-        work({ SenderClient.exchange(tv,3,id=UUID.randomUUID().toString(),text=draft,operation=it) }, { reply ->
-            if(reply.code==1) { catalog.invalidate(tv.id); renderSelection(); updateControls() }
-            if(reply.code==0) {
-                val remembered=persist { catalog.rememberEndpoint(tv) }
-                if(input.text.toString()==draft) input.text.clear()
-                if(!remembered) return@work
-            }
-            replyMessage(reply.code,tv.id)
-        }, { error ->
-            if(error is PinMismatch) { catalog.invalidate(tv.id); renderSelection(); updateControls(); showError(error,tv.id) }
-            else if(error is InvalidReply) showError(error,tv.id)
-            else {
-                message("uncertain",true,tv.id)
-                if(!scanning) scan { if(catalog.advertisement(tv.id)?.endpoint?.let { it!=tv.endpoint }==true) message("address_updated",true,tv.id) }
-            }
-        })
+        val tv=selected() ?: return
+        val draft=input.text.toString()
+        controller.send(tv,draft) { if(input.text.toString()==draft)input.text.clear() }
     }
     private fun renameSelected() {
         val tv=selected() ?: return
-        val body=column().apply { setPadding(dp(24),dp(4),dp(24),dp(8)) }
-        body.add(label(text("rename_hint"),14f,muted))
-        val name=EditText(this).apply {
-            tag="rename-input";textSize=18f;setSingleLine();imeOptions=EditorInfo.IME_ACTION_DONE;filters=arrayOf(InputFilter.LengthFilter(80));styleInput(this)
-            backgroundTintList=null;background=background(palette.input,12,palette.border);setPadding(dp(14),dp(14),dp(14),dp(14));setText(tv.displayName)
-            contentDescription=text("rename_title")
-        }
-        body.add(name,top=18)
-        showDialog(AlertDialog.Builder(this).setCustomTitle(dialogHeading("rename_title")).setView(body).setNegativeButton(text("cancel"),null).setPositiveButton(text("save"),null)) { current ->
-            val submit=current.getButton(AlertDialog.BUTTON_POSITIVE)
-            name.addTextChangedListener(object:TextWatcher {
-                override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int)=Unit
-                override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int){ submit.isEnabled=Wire.validName(s.toString()) }
-                override fun afterTextChanged(s:Editable?)=Unit
-            });submit.isEnabled=Wire.validName(name.text.toString())
-            submit.setOnClickListener {
-                if(!Wire.validName(name.text.toString()))return@setOnClickListener
-                try {
-                    check(storageHealthy)
-                    catalog.rename(tv.id, name.text.toString())
-                    current.dismiss()
-                    lastRows = null
-                    renderDevices()
-                } catch (_: Exception) { message("storage_error",true) }
-            }
-            name.setOnEditorActionListener { _,action,_ -> if(action==EditorInfo.IME_ACTION_DONE&&submit.isEnabled){submit.performClick();true}else false }
-            name.requestFocus();name.selectAll();current.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
-        }
+        dialogs.rename(tv.displayName) { controller.rename(tv,it) }
     }
     private fun unpair(tv: Tv) {
-        showDialog(AlertDialog.Builder(this).setTitle(text("unbind_title")).setMessage(text("unbind_hint")).setNegativeButton(text("cancel"),null).setPositiveButton(text("unbind")) { _,_ ->
-            work({ runCatching { SenderClient.exchange(tv,4,operation=it).code in 0..1 }.getOrDefault(false) }, { notified ->
-                if(persist { catalog.forget(tv.id) }) {
-                    lastRows=null; renderDevices(); clearMessage(); scan()
-                    if(!notified) showDialog(AlertDialog.Builder(this).setTitle(text("unbind_failed_title")).setMessage(text("unbind_failed")).setPositiveButton(android.R.string.ok,null))
-                }
-            })
-        })
+        dialogs.confirmUnpair { controller.unpair(tv) { dialogs.remoteFailure() } }
     }
 }

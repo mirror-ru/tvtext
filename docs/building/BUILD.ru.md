@@ -25,7 +25,7 @@
 
 По умолчанию результат помещается в `dist/`; путь можно изменить через `-Output`. Каждая сборка использует отдельную папку `build/run-*/`. В релиз загружаются два APK, EXE и его файл `.exe.config`.
 
-Исходники мобильного приложения находятся в `android-mobile/`, промежуточный JAR — в `build/run-*/android-mobile/app.jar`. Исходники мобильных тестов остаются в `tests/android/`. Идентификатор приложения Android остаётся `com.tvtext.mobile.app`.
+Исходники мобильного приложения находятся в `android-mobile/`, промежуточный JAR — в `build/run-*/android-mobile/app.jar`. Исходники мобильных тестов находятся в `tests/android-mobile/`. Идентификатор приложения Android остаётся `com.tvtext.mobile.app`.
 
 ## Локальная подготовка выпуска
 
@@ -42,10 +42,10 @@
 ```powershell
 .\test-mobile.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
-  -AppApk '.\dist\TVText-Mobile-2.0.8.apk'
+  -AppApk '.\dist\TVText-Mobile-2.0.9.apk'
 .\test-tv-ui.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
-  -AppApk '.\dist\TVText-TV-2.0.8.apk'
+  -AppApk '.\dist\TVText-TV-2.0.9.apk'
 ```
 
 Сценарии находят `app.jar` по этому файлу. Через `-AppJar` можно указать перемещённую копию, но её хеш должен совпадать. До установки на эмулятор отклоняются отсутствующие сведения о сборке, изменённый APK/JAR, другая платформа, версия или набор инструментов, а также изменения исходников приложения и сборщика. Старые APK без файла сведений нужно пересобрать. После изменения исходников также нужна новая сборка. Сохраняйте соответствующую папку `build/run-*/` до окончания тестов.

@@ -1,7 +1,6 @@
 package com.tvtext.app
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -14,25 +13,17 @@ import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
-import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.StateListDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.text.Layout
-import android.text.InputType
-import android.util.TypedValue
 import android.view.Gravity
-import android.view.KeyEvent
 import android.view.View
-import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowManager
-import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import java.util.Locale
 
@@ -59,7 +50,8 @@ class MainActivity : Activity() {
     private lateinit var themeButton: ImageButton
     private lateinit var computersButton: Button
     private lateinit var keyboardButton: Button
-    private var dialog: AlertDialog? = null
+    private val widgets by lazy { TvWidgets(this) }
+    private lateinit var dialogs: ReceiverDialogs
     private var initialFocus: View? = null
     private var statusColor = 0
     private var connectionBadgeCount = -1
@@ -100,6 +92,7 @@ class MainActivity : Activity() {
         val restoreThemeFocus=preferences.getBoolean("theme-focus",false)
         preferences.edit().remove("language-focus").remove("theme-focus").apply()
         runtime = BridgeRuntime.get(this)
+        dialogs = ReceiverDialogs(this,runtime,{ update() },{ keyboardTestOpen=it },{ keyboardButton.requestFocus() })
         val scroll = ScrollView(this).apply {
             isFillViewport = true
             tag="tv-page";setBackgroundColor(TvTheme.canvas)
@@ -194,7 +187,7 @@ class MainActivity : Activity() {
 
         val actions = row().apply { isBaselineAligned = false }
         computersButton = button(tr("connected_pcs")) {
-            if (accessibilityEnabled()) showComputers()
+            if (accessibilityEnabled()) dialogs.showComputers()
             else open(Settings.ACTION_ACCESSIBILITY_SETTINGS)
         }
         actions.addView(computersButton, LinearLayout.LayoutParams(0, dp(46), 1f))
@@ -209,7 +202,7 @@ class MainActivity : Activity() {
 
         panel.addView(View(this).apply { setBackgroundColor(TvTheme.border) }, full(dp(1)).apply { topMargin = dp(16) })
         val footer = row().apply { gravity = Gravity.CENTER_VERTICAL }
-        keyboardButton=button(tr("keyboard_test")) { showKeyboardTest() }.apply { tag="keyboard-test" }
+        keyboardButton=button(tr("keyboard_test")) { dialogs.showKeyboardTest() }.apply { tag="keyboard-test" }
         footer.addView(keyboardButton,LinearLayout.LayoutParams(-2,dp(40)))
         footer.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         languageButton = button(languageCode()) { toggleLanguage() }
@@ -267,49 +260,18 @@ class MainActivity : Activity() {
         getSharedPreferences("ui", MODE_PRIVATE).edit().putString("language", next).putBoolean("language-focus", true).apply()
         recreate()
     }
-    private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
-    private fun full(height: Int = -2) = LinearLayout.LayoutParams(-1, height)
-    private fun column() = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-    private fun row() = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-    private fun label(value: String, size: Int, color: Int) = TextView(this).apply {
-        text = value; textSize = size.toFloat(); setTextColor(color)
-        typeface = Typeface.create("sans-serif", Typeface.NORMAL)
-        includeFontPadding = false
-        breakStrategy = Layout.BREAK_STRATEGY_BALANCED
-        hyphenationFrequency = Layout.HYPHENATION_FREQUENCY_NONE
-    }
-    private fun shape(color: Int, radius: Int, stroke: Int = Color.TRANSPARENT) = GradientDrawable().apply {
-        setColor(color); cornerRadius = dp(radius).toFloat()
-        setStroke(dp(2), stroke)
-    }
-    private fun focusBackground(color: Int, primary: Boolean = false) = StateListDrawable().apply {
-        addState(intArrayOf(-android.R.attr.state_enabled), shape(TvTheme.disabled, 13))
-        addState(intArrayOf(android.R.attr.state_pressed), shape(if (primary) TvTheme.primaryPressed else TvTheme.buttonPressed, 13, accent))
-        addState(intArrayOf(android.R.attr.state_focused), shape(if (primary) TvTheme.primaryFocus else TvTheme.buttonFocus, 13, accent))
-        addState(intArrayOf(), shape(color, 13))
-    }
-    private fun dangerBackground() = StateListDrawable().apply {
-        addState(intArrayOf(-android.R.attr.state_enabled), shape(TvTheme.disabled, 13))
-        addState(intArrayOf(android.R.attr.state_pressed), shape(Color.rgb(157, 38, 57), 13, red))
-        addState(intArrayOf(android.R.attr.state_focused), shape(Color.rgb(173, 47, 66), 13, red))
-        addState(intArrayOf(), shape(TvTheme.danger, 13))
-    }
+    private fun dp(value: Int) = widgets.dp(value)
+    private fun full(height: Int = -2) = widgets.full(height)
+    private fun column() = widgets.column()
+    private fun row() = widgets.row()
+    private fun label(value: String, size: Int, color: Int) = widgets.label(value,size,color)
+    private fun shape(color: Int, radius: Int, stroke: Int = Color.TRANSPARENT) = widgets.shape(color,radius,stroke)
+    private fun focusBackground(color: Int, primary: Boolean = false) = widgets.focusBackground(color,primary)
     private fun card() = column().apply {
         tag="tv-card";background = shape(TvTheme.surface, 22).apply { setStroke(dp(1), TvTheme.border) }
         setPadding(dp(26), dp(22), dp(26), dp(22))
     }
-    private fun button(value: String, primary: Boolean = false, action: () -> Unit) = Button(this).apply {
-        text = value; textSize = 14f; isAllCaps = false
-        maxLines = 1; isSingleLine = true
-        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        minimumWidth = 0; minimumHeight = 0
-        setPadding(dp(16), 0, dp(16), 0)
-        setTextColor(ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
-            intArrayOf(muted, if (primary) Color.WHITE else accent)))
-        background = focusBackground(if (primary) TvTheme.primary else TvTheme.button, primary)
-        stateListAnimator = null
-        setOnClickListener { action() }
-    }
+    private fun button(value: String, primary: Boolean = false, action: () -> Unit) = widgets.button(value,primary,action)
     /** Small outlined count badge shown at the end of the connected-devices button. */
     private inner class ConnectionCountBadge(private val count: Int) : Drawable() {
         private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
@@ -349,18 +311,6 @@ class MainActivity : Activity() {
         @Deprecated("Deprecated in Android Drawable API", level = DeprecationLevel.WARNING)
         override fun getOpacity() = PixelFormat.TRANSLUCENT
     }
-    private fun deleteButton(action: () -> Unit) = ImageButton(this).apply {
-        val icon = resources.getIdentifier("ic_delete", "drawable", packageName)
-        if (icon != 0) setImageResource(icon)
-        imageTintList = ColorStateList.valueOf(Color.WHITE)
-        contentDescription = tr("delete_connection_action")
-        scaleType = ImageView.ScaleType.CENTER
-        setPadding(dp(10), dp(8), dp(10), dp(8))
-        minimumWidth = 0; minimumHeight = 0
-        background = dangerBackground()
-        stateListAnimator = null
-        setOnClickListener { action() }
-    }
     private fun toast(message: String) { Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
     private fun View.showIf(value: Boolean) {
@@ -377,198 +327,10 @@ class MainActivity : Activity() {
         try { startActivity(Intent(action)) }
         catch (_: Exception) { toast(tr("open_settings_failed")) }
     }
-    private fun showComputers() {
-        val content = column().apply { tag="connections-panel";setPadding(dp(24),dp(24),dp(24),dp(24)) }
-        var listDialog: AlertDialog? = null
-        val tokens = runtime.engine.pairedTokens()
-        val header=row().apply { gravity=Gravity.CENTER_VERTICAL }
-        header.addView(computerBadge(40),LinearLayout.LayoutParams(dp(40),dp(40)))
-        header.addView(label(tr("connected_pcs"),22,ink).apply {
-            typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
-        },LinearLayout.LayoutParams(0,-2,1f).apply { marginStart=dp(12);marginEnd=dp(12) })
-        header.addView(label(tokens.size.toString(),13,accent).apply {
-            tag="connections-count";gravity=Gravity.CENTER;contentDescription=tr("connections_count_format",tokens.size)
-            typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL);background=shape(TvTheme.icon,10)
-            setPadding(dp(10),0,dp(10),0)
-        },LinearLayout.LayoutParams(-2,dp(28)))
-        content.addView(header,full())
-        var firstRemove: View? = null
-        val deleteActions=mutableListOf<View>()
-        if (tokens.isEmpty()) {
-            val empty=column().apply {
-                tag="connections-empty";gravity=Gravity.CENTER;setPadding(dp(16),dp(24),dp(16),dp(24))
-                background=shape(TvTheme.inset,16)
-            }
-            empty.addView(computerBadge(48),LinearLayout.LayoutParams(dp(48),dp(48)))
-            empty.addView(label(tr("no_connected_pcs"),15,muted).apply { gravity=Gravity.CENTER },full().apply { topMargin=dp(12) })
-            content.addView(empty,full().apply { topMargin=dp(20) })
-        } else {
-            val list=column()
-            val itemHeight=maxOf(dp(72),TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,40f,resources.displayMetrics).toInt()+dp(24))
-            tokens.forEachIndexed { index, token ->
-                val item = row().apply {
-                    tag="connection-item"
-                    gravity = Gravity.CENTER_VERTICAL
-                    background=StateListDrawable().apply {
-                        addState(intArrayOf(android.R.attr.state_activated),shape(TvTheme.inset,16,accent))
-                        addState(intArrayOf(),shape(TvTheme.inset,16).apply { setStroke(dp(1),TvTheme.border) })
-                    }
-                    setPadding(dp(14),dp(12),dp(12),dp(12))
-                }
-                item.addView(computerBadge(40),LinearLayout.LayoutParams(dp(40),dp(40)))
-                val text = column()
-                text.addView(label(tr("pc_title_format", index + 1),17,ink).apply {
-                    typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                    maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.END
-                }, full())
-                text.addView(label(tr("pc_id_format", token.takeLast(6)), 12, muted), full().apply { topMargin = dp(3) })
-                item.addView(text,LinearLayout.LayoutParams(0,-2,1f).apply { marginStart=dp(12) })
-                val remove = deleteButton {
-                    listDialog?.dismiss()
-                    confirmRevoke(token,index+1)
-                }.apply {
-                    tag="connection-delete";contentDescription=tr("delete_connection")+": "+tr("pc_title_format",index+1)
-                    setOnFocusChangeListener { _,focused -> item.isActivated=focused }
-                }
-                if(firstRemove==null)firstRemove=remove
-                deleteActions.add(remove)
-                item.addView(remove,LinearLayout.LayoutParams(dp(48),dp(48)).apply { marginStart=dp(12) })
-                list.addView(item,full(itemHeight).apply { if(index>0)topMargin=dp(8) })
-            }
-            val desiredHeight=minOf(tokens.size,3)*itemHeight+dp(8)*(minOf(tokens.size,3)-1)
-            val availableHeight=maxOf(itemHeight,dp(resources.configuration.screenHeightDp-240))
-            val scroll=ScrollView(this).apply {
-                tag="connections-list";isFocusable=false;isVerticalScrollBarEnabled=true;isScrollbarFadingEnabled=true
-                descendantFocusability=ViewGroup.FOCUS_AFTER_DESCENDANTS;addView(list)
-            }
-            content.addView(scroll,full(minOf(desiredHeight,availableHeight)).apply { topMargin=dp(20) })
-        }
-        val footer=row().apply { gravity=Gravity.END }
-        val close=button(tr("close")) { listDialog?.dismiss() }.apply { tag="connections-close" }
-        deleteActions.forEachIndexed { index,action ->
-            action.setOnKeyListener { _,key,event ->
-                if(event.action!=KeyEvent.ACTION_DOWN)false
-                else when {
-                    key==KeyEvent.KEYCODE_DPAD_DOWN -> (deleteActions.getOrNull(index+1) ?: close).requestFocus()
-                    key==KeyEvent.KEYCODE_DPAD_UP&&index>0 -> deleteActions[index-1].requestFocus()
-                    else -> false
-                }
-            }
-        }
-        close.setOnKeyListener { _,key,event ->
-            if(event.action==KeyEvent.ACTION_DOWN&&key==KeyEvent.KEYCODE_DPAD_UP)deleteActions.lastOrNull()?.requestFocus() ?: false else false
-        }
-        footer.addView(close,LinearLayout.LayoutParams(dp(112),dp(44)))
-        content.addView(footer,full().apply { topMargin=dp(20) })
-        listDialog=showDialog(AlertDialog.Builder(this),customView=content)
-        val width=minOf(520,resources.configuration.screenWidthDp-64)
-        listDialog?.window?.setLayout(dp(width),WindowManager.LayoutParams.WRAP_CONTENT)
-        content.post { (firstRemove ?: close).requestFocus() }
-    }
-    private fun computerBadge(size: Int)=ImageView(this).apply {
-        val icon=resources.getIdentifier("ic_computer","drawable",packageName)
-        setImageResource(icon);imageTintList=ColorStateList.valueOf(accent);scaleType=ImageView.ScaleType.CENTER_INSIDE
-        val padding=dp(if(size>40)12 else 9);setPadding(padding,padding,padding,padding)
-        background=shape(TvTheme.icon,12);importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO
-    }
-    private fun dialogContent(title: String, glyph: String, color: Int = accent)=column().apply {
-        setPadding(dp(24),dp(24),dp(24),dp(24))
-        val header=row().apply { gravity=Gravity.CENTER_VERTICAL }
-        header.addView(label(glyph,22,color).apply {
-            gravity=Gravity.CENTER;typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
-            background=shape(TvTheme.inset,12)
-            importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        },LinearLayout.LayoutParams(dp(42),dp(42)))
-        header.addView(label(title,22,ink).apply {
-            typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
-        },LinearLayout.LayoutParams(0,-2,1f).apply { marginStart=dp(14) })
-        addView(header,full())
-    }
-    private fun dialogMessage(value: String)=label(value,15,muted).apply {
-        breakStrategy=Layout.BREAK_STRATEGY_SIMPLE;setLineSpacing(dp(3).toFloat(),1f)
-    }
-    private fun confirmRevoke(token: String, number: Int) {
-        val content=dialogContent(tr("delete_connection_title"),"!",red).apply { tag="revoke-panel" }
-        val device=row().apply {
-            gravity=Gravity.CENTER_VERTICAL;setPadding(dp(12),dp(12),dp(12),dp(12))
-            background=shape(TvTheme.inset,14)
-        }
-        device.addView(computerBadge(36),LinearLayout.LayoutParams(dp(36),dp(36)))
-        device.addView(column().apply {
-            addView(label(tr("pc_title_format",number),16,ink),full())
-            addView(label(tr("pc_id_format",token.takeLast(6)),12,muted),full().apply { topMargin=dp(4) })
-        },LinearLayout.LayoutParams(0,-2,1f).apply { marginStart=dp(12) })
-        content.addView(device,full().apply { topMargin=dp(18) })
-        content.addView(dialogMessage(tr("delete_connection_message")),full().apply { topMargin=dp(16) })
-        val actions=row()
-        val cancel=button(tr("cancel")) { dialog?.dismiss();showComputers() }.apply { tag="revoke-cancel" }
-        val remove=button(tr("delete_connection_action")) {
-            try { runtime.engine.revokeToken(token) }
-            catch (_: Exception) { toast(tr("save_change_failed")) }
-            dialog?.dismiss();update();showComputers()
-        }.apply { tag="revoke-confirm";setTextColor(Color.WHITE);background=dangerBackground() }
-        actions.addView(cancel,LinearLayout.LayoutParams(0,dp(46),1f))
-        actions.addView(remove,LinearLayout.LayoutParams(0,dp(46),1f).apply { marginStart=dp(12) })
-        content.addView(actions,full().apply { topMargin=dp(22) })
-        showDialog(AlertDialog.Builder(this),customView=content)
-        content.post { remove.requestFocus() }
-    }
-    private fun showKeyboardTest() {
-        val content=dialogContent(tr("keyboard_test"),"T").apply { tag="keyboard-test-panel" }
-        content.addView(dialogMessage(tr("keyboard_test_hint")),full().apply { topMargin=dp(16) })
-        val editor=EditText(this).apply {
-            id=resources.getIdentifier("keyboard_test_input","id",packageName);tag="keyboard-test-input"
-            hint=tr("keyboard_test_placeholder");contentDescription=tr("keyboard_test_field")
-            textSize=18f;setTextColor(ink);setHintTextColor(muted)
-            inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-            imeOptions=EditorInfo.IME_FLAG_NO_EXTRACT_UI
-            minLines=2;maxLines=3;gravity=Gravity.TOP or Gravity.START
-            setPadding(dp(14),dp(12),dp(14),dp(12))
-            background=StateListDrawable().apply {
-                addState(intArrayOf(android.R.attr.state_focused),shape(TvTheme.inset,13,accent))
-                addState(intArrayOf(),shape(TvTheme.inset,13,TvTheme.border))
-            }
-        }
-        content.addView(editor,full().apply { topMargin=dp(18) })
-        val actions=row()
-        val close=button(tr("close"),true) { dialog?.dismiss() }.apply { tag="keyboard-test-close" }
-        actions.addView(close,LinearLayout.LayoutParams(0,dp(44),1f))
-        content.addView(actions,full().apply { topMargin=dp(18) })
-        editor.requestFocus()
-        val current=showDialog(AlertDialog.Builder(this),customView=content,showKeyboard=true)
-        keyboardTestOpen=true
-        current.setOnDismissListener {
-            keyboardTestOpen=false
-            (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(editor.windowToken,0)
-            if(dialog===current)dialog=null
-            keyboardButton.requestFocus()
-        }
-        editor.post {
-            if(current.isShowing) {
-                editor.requestFocus()
-                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showSoftInput(editor,InputMethodManager.SHOW_IMPLICIT)
-            }
-        }
-    }
-    private fun showDialog(builder: AlertDialog.Builder, customView: View, showKeyboard: Boolean = false): AlertDialog {
-        val current=builder.create()
-        current.setView(customView,0,0,0,0)
-        dialog?.dismiss();dialog=current
-        current.setOnDismissListener { if(dialog===current)dialog=null }
-        current.setOnShowListener {
-            current.window?.setBackgroundDrawable(shape(TvTheme.surface,18,TvTheme.border))
-        }
-        // The legacy resize flag keeps the dialog usable on Android 9-10 TV firmware.
-        @Suppress("DEPRECATION")
-        if(showKeyboard)current.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-        current.show()
-        current.window?.setLayout(dp(minOf(520,resources.configuration.screenWidthDp-64)),WindowManager.LayoutParams.WRAP_CONTENT)
-        return current
-    }
     private fun scheduleRefresh() { handler.removeCallbacks(refresh); handler.post(refresh) }
     override fun onResume() { super.onResume(); scheduleRefresh() }
     override fun onPause() { handler.removeCallbacks(refresh); super.onPause() }
-    override fun onDestroy() { handler.removeCallbacks(refresh);dialog?.dismiss();super.onDestroy() }
+    override fun onDestroy() { handler.removeCallbacks(refresh);dialogs.dismiss();super.onDestroy() }
     private fun update() {
         val missing = runtime.service == null
         val accessibilityOff = !accessibilityEnabled()

@@ -25,6 +25,7 @@ public static class ClientTests
         if(args[0]=="theme")return ThemeTests.Run(args[1]);
         if(args[0]=="dpi-layout")return DpiLayoutTests.Run();
         if(args[0]=="connection-save"){ConnectionSaveTests.Run();return 0;}
+        if(args[0]=="sender-workflow"){SenderWorkflowTests.Run();return 0;}
         if (args[0] == "preview")
         {
             Application.EnableVisualStyles();

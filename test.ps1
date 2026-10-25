@@ -30,6 +30,7 @@ $csharp += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tests\windows'
 Invoke-Checked $csc (@('/nologo','/target:exe','/main:ClientTests','/codepage:65001',('/out:'+$testExe),'/r:System.dll','/r:System.Core.dll','/r:System.Drawing.dll','/r:System.Windows.Forms.dll','/r:System.Security.dll',$metadata.AssemblyInfo) + $csharp)
 Invoke-Checked $testExe @('dpi-layout')
 Invoke-Checked $testExe @('connection-save')
+Invoke-Checked $testExe @('sender-workflow')
 # The normal fixture runs DPI-unaware. A second executable uses the release
 # manifest so startup is also checked at the real Windows DPI, before any Scale().
 $dpiTestExe = Join-Path $run 'ClientDpiTests.exe'

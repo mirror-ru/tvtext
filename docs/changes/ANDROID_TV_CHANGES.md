@@ -1,5 +1,22 @@
 # Android TV changes
 
+## 26 October 2026 — local version 2.0.9 rebuild
+
+- Updated the receiver to version 2.0.9 / Android code 29 through shared version metadata. The build includes the current dialog/widget refactoring.
+- Verified package `com.tvtext.app`, minSdk 28 / targetSdk 34, alignment, existing APK certificate and exact APK/JAR/source pairing. The version bump introduces no additional runtime behavior changes.
+- Output: `outputs/TVText-2.0.9/TVText-TV-2.0.9.apk`, 82,896 bytes; SHA-256 `d9819cd3f46252ea4f25476d42fe1da80a1b36fe7d97538b24322d76f75d76e2`.
+- Previous output files and GitHub refs/releases are unchanged; no publication was performed.
+
+## 26 October 2026 — receiver dialogs separated from the main screen
+
+- Added `ReceiverDialogs.kt` for the device list, revoke confirmation and keyboard test, including dialog lifetime and D-pad focus handling.
+- Added shared `TvWidgets.kt` for main/dialog layout primitives, button states, badges and colors. Existing spacing, strings, view tags and focus targets were retained.
+- `MainActivity` keeps the main screen/status rendering, language/theme handling and activity lifetime. Transport, pairing engine and text-insertion bridges retain their existing roles.
+- Keyboard-test open/close state is relayed through callbacks; dismissing a destroyed activity closes the allowed test target and releases the dialog.
+- Extended the UI suite to recreate the activity while its keyboard dialog is open, checking dismissal, cleared test-target state and a new empty editor afterward.
+- Version metadata remains 2.0.8 / 28. Local verification artifacts stay under `build/refactor-final/`; existing release output and GitHub refs remain unchanged.
+- Final API 34 instrumentation passed, including recreation while the keyboard dialog is open: `build/tv-ui-test-4646fc0f1cc0400c9b47ee26f1684de7`.
+
 ## 25 October 2026 — safe legacy insertion and compatibility checks
 
 - Removed the Android 9–12 `ACTION_SET_TEXT` fallback, which could replace an entire nonempty field. Only Paste is used; missing/rejected Paste reports failure without reading the editor's text.

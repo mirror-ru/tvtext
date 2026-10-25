@@ -27,6 +27,12 @@ captures/
 *.pem
 *.key
 *.crt
+signing-password.txt
+
+# Local environment settings; keep a publishable example template
+.env
+.env.*
+!.env.example
 
 # Local profile, fixture and log files
 *.dat
@@ -35,6 +41,7 @@ captures/
 # Release binaries belong in GitHub Releases, not the source history
 *.apk
 *.apk.build.json
+*.idsig
 *.aab
 *.exe
 *.dll

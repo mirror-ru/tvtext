@@ -1,5 +1,36 @@
 # Android phone/tablet changes
 
+## 26 October 2026 — local version 2.0.9 rebuild
+
+- Updated the shared version to 2.0.9 / Android code 29 and rebuilt the current mobile sources, including the controller/dialog separation and P3 destruction-order fix.
+- Verified package `com.tvtext.mobile.app`, minSdk 28 / targetSdk 34, APK alignment, the existing signing certificate and exact APK/JAR/source pairing. This was a metadata-only version bump after the recorded functional checks.
+- Output: `outputs/TVText-2.0.9/TVText-Mobile-2.0.9.apk`, 78,229 bytes; SHA-256 `0b51c25d2ce17d83beb48bc23e9d7d5189a603be6d72ba3a34cd7eeb04cf3b60`.
+- Source guides and current download examples now reference 2.0.9. Existing 2.0.8 files, Git commits/tags and GitHub releases remain unchanged.
+
+## 26 October 2026 — P3 destruction-order finding resolved
+
+- `SenderController.destroy()` now marks the controller destroyed, cancels the current operation and shuts down queued work before stopping discovery. Discovery shutdown runs in `finally`; late callbacks remain ignored.
+- Repeated destruction is a no-op. A failure/delay in discovery shutdown cannot leave the request uncancelled or postpone worker shutdown.
+- Added regression cases for a task already removed from the executor queue resuming during discovery shutdown, a discovery-stop exception, and repeated destruction. The new test failed on the old order (`build/destroy-fix-red.log`) and passed after the fix.
+- Mobile JVM/controller/TLS suite passed: `build/mobile-test-0cdeb02bdc734e2da7e1321a91373000`. Mobile APK rebuilt under `build/destroy-fix/`; version remains 2.0.8 / 28. Published files and GitHub refs were not changed.
+
+## 26 October 2026 — mobile test directory and local review
+
+- Renamed the six-file mobile test directory to `tests/android-mobile/`. File hashes were compared before/after moving; package names and the instrumentation target remain unchanged.
+- Updated all active test-script, README, build-guide and test-report paths. The test directory now matches the application source directory name.
+- After the rename, mobile JVM/TLS, test-APK packaging and API 34 touch/UI instrumentation passed: `build/mobile-test-5d8b708f77e648979ca34472ae54ea3d`.
+- Review found one low-priority hardening opportunity in `SenderController.destroy()`: close the operation before stopping discovery. An isolated controller reproduction (`build/review-destroy-order.kt`) lets queued work run while discovery shutdown waits. The current Activity already stops discovery in `onStop()`, so a regression in its normal close path was not demonstrated; the initial P2 suspicion was downgraded to P3 after checking that lifecycle. Runtime sources were not changed by that rename/review task; the subsequent fix above resolves the finding.
+
+## 26 October 2026 — controller and dialogs separated from the activity
+
+- Added `SenderController.kt` for search, probing/pairing, send/unpair/rename operations, persistence failures and request lifetime. It uses the existing catalog and transport with injectable worker, UI dispatcher and discovery/transport adapters.
+- Search generations reject callbacks from stopped/replaced scans. Destroying the controller closes its operation, stops discovery, shuts down its worker and ignores already queued response callbacks.
+- Added `SenderDialogs.kt` for pairing-code/fingerprint/rename/unpair dialogs, retaining their layouts, validation, styles and focus. `EditorStyle.kt` keeps native editor colors/caret styling shared with the main text field.
+- `MainActivity` now binds UI actions to the controller and renders state. A confirmed send clears only the unchanged original draft; a storage warning remains visible after delivery when saving the endpoint fails.
+- Added direct JVM scenario checks for changed drafts, rejected/uncertain sends, no replay, pin rejection, address/save failure, stale discovery, destruction before/after background work, unpair and confirmed pairing.
+- Version metadata remains 2.0.8; verification artifacts stay in `build/refactor-final/`. No release files or GitHub refs were replaced.
+- Final JVM/TLS and touch/UI instrumentation passed on API 34: `build/mobile-test-85a206b9586d40088bd6818aded8fbe8`.
+
 ## 25 October 2026 — encapsulated connection state
 
 - Made catalog maps/sets private. Activity now uses explicit restore/discovery/pair/forget/invalidate/endpoint/rename operations rather than mutating shared collections.
@@ -14,7 +45,7 @@
 
 - Renamed the mobile application source directory from `android/` to `android-mobile/`, preserving all source/resource files.
 - Updated mobile build/test paths, source fingerprints and build-record target names to `android-mobile`.
-- Kept mobile test sources in `tests/android/`; the application ID remains `com.tvtext.mobile.app`, so the folder rename does not require reinstalling the app.
+- Kept mobile test sources in `tests/android-mobile/`; the application ID remains `com.tvtext.mobile.app`, so the folder rename does not require reinstalling the app.
 - Application version is `2.0.8`, Android version code `28`; output is `outputs/TVText-2.0.8/TVText-Mobile-2.0.8.apk`.
 - APK SHA-256: `9EAA3AE9B3066E144C5C9C45D0B4615B8D27A58FA4E7E3D901DBD06650BEB58D`. The signing certificate matches 2.0.7.
 - Full mobile JVM/TLS/UI checks passed from the renamed source tree: `build/mobile-test-dc0392278e794e26882afc09217a0cc9`.

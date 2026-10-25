@@ -25,7 +25,7 @@ The default JDK and Kotlin paths point to Android Studio. The Android SDK defaul
 
 Output defaults to `dist/`; override it with `-Output`. Each build uses its own `build/run-*/` directory. Release uploads contain the two APKs and the EXE with its `.exe.config` sidecar.
 
-Mobile sources and their intermediate JAR are under `android-mobile/` and `build/run-*/android-mobile/app.jar`. Mobile test sources remain in `tests/android/`. The Android application ID is still `com.tvtext.mobile.app`.
+Mobile sources and their intermediate JAR are under `android-mobile/` and `build/run-*/android-mobile/app.jar`. Mobile test sources are in `tests/android-mobile/`. The Android application ID is still `com.tvtext.mobile.app`.
 
 ## Local release preparation
 
@@ -42,10 +42,10 @@ Each APK receives an adjacent `<filename>.apk.build.json` record. It contains th
 ```powershell
 .\test-mobile.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
-  -AppApk '.\dist\TVText-Mobile-2.0.8.apk'
+  -AppApk '.\dist\TVText-Mobile-2.0.9.apk'
 .\test-tv-ui.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
-  -AppApk '.\dist\TVText-TV-2.0.8.apk'
+  -AppApk '.\dist\TVText-TV-2.0.9.apk'
 ```
 
 The scripts find `app.jar` through this record. `-AppJar` can point to a moved copy, but its hash must match. They reject missing records, changed APK/JAR contents, a different target/version/toolchain, and application/build source changes before installing anything. Rebuild old APKs that have no record. Rebuild after source changes. Retain `build/run-*/` until the associated tests finish.

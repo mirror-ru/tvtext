@@ -11,8 +11,8 @@ import java.net.Inet4Address
 import java.util.ArrayDeque
 
 /** A bounded scan, with serialized legacy resolves for Android 9 compatibility. */
-class TvDiscovery(context: Context) {
-    var lastError: String = ""
+class TvDiscovery(context: Context) : SenderController.Discovery {
+    override var lastError: String = ""
         private set
     private val manager = context.getSystemService(NsdManager::class.java)
     private val main = Handler(Looper.getMainLooper())
@@ -25,7 +25,7 @@ class TvDiscovery(context: Context) {
     private var onFound: (Tv) -> Unit = {}
     private var onDone: (Boolean) -> Unit = {}
     private var expiry: Runnable? = null
-    fun start(foundCallback: (Tv) -> Unit, doneCallback: (Boolean) -> Unit) {
+    override fun start(foundCallback: (Tv) -> Unit, doneCallback: (Boolean) -> Unit) {
         stop(); generation++; val current = generation
         found.clear(); seen.clear(); lastError="";onFound = foundCallback; onDone = doneCallback
         val active = object : NsdManager.DiscoveryListener {
@@ -71,7 +71,7 @@ class TvDiscovery(context: Context) {
         try { manager.resolveService(info, resolve) } catch (_: Exception) { resolving = false; pump() }
     }
     private fun finish(success: Boolean) { val callback = onDone; stop(); callback(success) }
-    fun stop() {
+    override fun stop() {
         generation++; expiry?.let { main.removeCallbacks(it) }; expiry = null; queue.clear();resolving=false
         val previous = listener; listener = null
         if (previous != null) runCatching { manager.stopServiceDiscovery(previous) }
