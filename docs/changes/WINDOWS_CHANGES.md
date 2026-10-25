@@ -6,7 +6,7 @@
 - Output: `outputs/TVText-2.0.9/TVText-2.0.9.exe`, 110,080 bytes, plus its `.exe.config` sidecar. EXE SHA-256: `914f26c7d55d3b48cc288e456bcd3d0026603a750921dcf0106227364290876d`.
 - Build tooling checks passed: `build/build-tests-fb0fa9ba51384182950c9e77c0c881e8`, including Windows-only dependency isolation and derived-version validation.
 - The output directory contains exactly four application assets. APK build records, checksums and verification metadata remain local under `build/rebuild-2.0.9/`.
-- Previous 2.0.8 artifacts, Git commits/tags and GitHub releases were not changed.
+- The application sources were subsequently pushed to `main` in [65c2643](https://github.com/mirror-ru/tvtext/commit/65c26435066e2288e03f64b13a9c14a550ae3a5a). The 2.0.9 binaries remain local; that push did not create a version tag or GitHub Release. Previous 2.0.8 artifacts remain unchanged.
 
 ## 26 October 2026 — sender scenarios separated from the window
 

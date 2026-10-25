@@ -5,7 +5,7 @@
 - Updated the receiver to version 2.0.9 / Android code 29 through shared version metadata. The build includes the current dialog/widget refactoring.
 - Verified package `com.tvtext.app`, minSdk 28 / targetSdk 34, alignment, existing APK certificate and exact APK/JAR/source pairing. The version bump introduces no additional runtime behavior changes.
 - Output: `outputs/TVText-2.0.9/TVText-TV-2.0.9.apk`, 82,896 bytes; SHA-256 `d9819cd3f46252ea4f25476d42fe1da80a1b36fe7d97538b24322d76f75d76e2`.
-- Previous output files and GitHub refs/releases are unchanged; no publication was performed.
+- The application sources were subsequently pushed to `main` in [65c2643](https://github.com/mirror-ru/tvtext/commit/65c26435066e2288e03f64b13a9c14a550ae3a5a). The 2.0.9 binaries remain local; that push did not create a version tag or GitHub Release. Previous output files remain unchanged.
 
 ## 26 October 2026 — receiver dialogs separated from the main screen
 

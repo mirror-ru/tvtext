@@ -5,7 +5,7 @@
 - Updated the shared version to 2.0.9 / Android code 29 and rebuilt the current mobile sources, including the controller/dialog separation and P3 destruction-order fix.
 - Verified package `com.tvtext.mobile.app`, minSdk 28 / targetSdk 34, APK alignment, the existing signing certificate and exact APK/JAR/source pairing. This was a metadata-only version bump after the recorded functional checks.
 - Output: `outputs/TVText-2.0.9/TVText-Mobile-2.0.9.apk`, 78,229 bytes; SHA-256 `0b51c25d2ce17d83beb48bc23e9d7d5189a603be6d72ba3a34cd7eeb04cf3b60`.
-- Source guides and current download examples now reference 2.0.9. Existing 2.0.8 files, Git commits/tags and GitHub releases remain unchanged.
+- Source guides and current download examples now reference 2.0.9. The application sources were subsequently pushed to `main` in [65c2643](https://github.com/mirror-ru/tvtext/commit/65c26435066e2288e03f64b13a9c14a550ae3a5a). The 2.0.9 binaries remain local; that push did not create a version tag or GitHub Release. Existing 2.0.8 files remain unchanged.
 
 ## 26 October 2026 — P3 destruction-order finding resolved
 

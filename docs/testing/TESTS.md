@@ -1,5 +1,11 @@
 # TVText test report
 
+## Source update — 26 October 2026
+
+- The application sources for 2.0.9, including the refactoring and destruction-order fix below, were pushed to `main` in [65c2643](https://github.com/mirror-ru/tvtext/commit/65c26435066e2288e03f64b13a9c14a550ae3a5a).
+- The 2.0.9 binaries remain local under `outputs/TVText-2.0.9/`. That push did not create a version tag or GitHub Release.
+- Earlier notes about local changes and absent commits/publication describe the state at the time of each check.
+
 ## Git ignore audit — 26 October 2026
 
 - Existing build/output/local-key exclusions cover the current generated files. Added explicit rules for `signing-password.txt`, `.env` / `.env.*` and APK `.idsig` sidecars; `.env.example` templates remain eligible.
@@ -11,7 +17,7 @@
 - The output directory contains only the TV APK, mobile APK, EXE and EXE configuration. Matching local APK/JAR build records, SHA-256 sums and `verification.json` stay in `build/rebuild-2.0.9/`.
 - Verified both package IDs, minSdk 28 / targetSdk 34, alignment, the existing pinned signing certificate, exact APK/JAR/source pairing, Windows versions, runtime configuration and hashes after copying.
 - Build tooling checks passed: `build/build-tests-fb0fa9ba51384182950c9e77c0c881e8`. Functional/UI suites were not repeated for this metadata-only version bump; the preceding refactoring and destruction-order checks are recorded below.
-- Previous 2.0.8 output remains intact. No Git commit, tag or GitHub publication was created.
+- Previous 2.0.8 output remains intact. The rebuild itself did not create a Git commit, tag or GitHub publication; the subsequent source push is recorded above.
 
 | Artifact | SHA-256 |
 | --- | --- |
@@ -137,7 +143,7 @@ The device suite is restricted to an explicitly named emulator:
 ```powershell
 .\test-mobile.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
-  -AppApk '.\dist\TVText-Mobile-2.0.8.apk'
+  -AppApk '.\dist\TVText-Mobile-2.0.9.apk'
 ```
 
 `test.ps1` checks the build helpers, compiles the C# Windows client and Kotlin TV fixture, runs local TLS/DNS-SD tests, and renders Windows Forms checks off-screen. `test-mobile.ps1` first runs JVM catalog/protocol checks; with `-Device` it additionally builds an instrumentation APK, installs the matching application APK, and runs tests inside the selected emulator. `test-tv-ui.ps1` runs the TV instrumentation suite. Both device scripts validate the adjacent APK build record and exact JAR/source hashes before installing anything.
