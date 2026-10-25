@@ -1,5 +1,19 @@
 # Android TV changes
 
+## 26 October 2026 — native Android 9 compatibility
+
+- The existing 2.0.9 receiver passed the complete TV suite on an isolated official AOSP API 28 emulator: `build/tv-ui-test-35b2796c838445bc8124f15e0f4c6e2f`, log `build/api28-compatibility.log`.
+- External-field cursor/selection/Unicode insertion, the selected IME and background restoration of empty/nonempty clipboards all passed. The API 31 clipboard-restoration failure remains documented separately.
+- Application sources, release assets and Git refs were not changed. Unselected API entries in future compatibility reports use `not selected` instead of inferring that images are unavailable.
+
+## 26 October 2026 — native Android 12 and external-field regression
+
+- Installed an isolated official API 31 AVD and tested the existing 2.0.9 receiver APK without replacing release assets or changing application sources.
+- `test-tv-ui.ps1` now builds a separate API 28+ field APK. Added cross-package cursor, Unicode/multiline, selection, clipboard and unchanged-keyboard checks; foreground clipboard checks remain separate.
+- Native API 31 inserts text and preserves the selected IME, but background clipboard restoration fails because Android denies clipboard reads to the receiver. The strict regression remains failing and the limitation is documented in both languages; see `build/api31-tv-result-final.log` and `docs/testing/COMPATIBILITY.md`.
+
+- The expanded API 34 TV suite passed, including the external field and unchanged clipboard: `build/tv-ui-test-e178257e65554c6881db79c4961f0fa5`, log `build/api34-tv-result-final.log`.
+
 ## 26 October 2026 — local version 2.0.9 rebuild
 
 - Updated the receiver to version 2.0.9 / Android code 29 through shared version metadata. The build includes the current dialog/widget refactoring.

@@ -25,6 +25,8 @@ Enter or **Send to TV** sends the text. **Shift+Enter** inserts a new line. TVTe
 
 Android 13+ uses the accessibility input connection. Android 9–12 uses the field's **Paste** action: text is inserted at the cursor or replaces the selected range. If the field does not support Paste or rejects it, sending fails and the sender keeps the draft. TVText never falls back to replacing the entire field or reading its contents. Custom editors may not support either insertion method; see the [compatibility checklist](../testing/COMPATIBILITY.md).
 
+On Android 10–12, background clipboard restrictions can prevent restoration of its previous contents after Paste. The sent text can remain in the clipboard; this is reproduced on Android 12. Android 13+ insertion does not use the clipboard.
+
 ## Pair from Android
 
 1. Open TVText-Mobile and wait for the TV to appear, or tap refresh.

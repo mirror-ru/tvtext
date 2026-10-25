@@ -244,7 +244,11 @@ public final class ThemeDeviceTests extends Instrumentation {
             check(runtime.getEngine().pairedTokens().size()==connectionCount-1,"confirm deletes exactly one connection");
             check(((AlertDialog)field("dialog")).getWindow().getDecorView().findViewWithTag("connections-panel")!=null,"deletion returns to updated device list");closeConnections();
             checkTheme();capture("TVText-TV-dark-ready.png");
-            result.putString("stream","PASS: Android TV themes: API "+android.os.Build.VERSION.SDK_INT+", unified cards, dark/light RU/EN, D-pad focus, lists and revoke, keyboard insert, legacy cursor/selection/paste rejection/clipboard restoration, close, no retained text, contrast\n");resultCode=Activity.RESULT_OK;
+            String externalPin=runtime.getEngine().openPairing();
+            String externalToken=runtime.getEngine().handle(new Protocol.Request(Protocol.PAIR,externalPin,"",""),()->Boolean.TRUE).getToken();
+            check(!externalToken.isEmpty(),"independent external-field fixture pairing");fixtureTokens.add(externalToken);
+            new ExternalFieldChecks(this).run(runtime,externalToken);
+            result.putString("stream","PASS: Android TV themes: API "+android.os.Build.VERSION.SDK_INT+", unified cards, dark/light RU/EN, D-pad focus, lists and revoke, keyboard insert, external-package cursor/selection/Unicode/clipboard/IME, legacy cursor/selection/paste rejection/clipboard restoration, close, no retained text, contrast\n");resultCode=Activity.RESULT_OK;
         }catch(Throwable error){result.putString("stream","FAIL: "+android.util.Log.getStackTraceString(error)+"\n");}
         finally{
             if(clipboardCaptured[0])ui(()->{if(originalClipboard[0]==null)clipboard.clearPrimaryClip();else clipboard.setPrimaryClip(originalClipboard[0]);});

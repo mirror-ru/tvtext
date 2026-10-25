@@ -1,5 +1,25 @@
 # TVText test report
 
+## Native Android 9 checks — 26 October 2026
+
+- Installed the official AOSP/default x86_64 API 28 revision 4 image in an isolated local AVD. Verified the 564,792,723-byte archive against catalog SHA-1 `d47a85c8f4e9fd57df97814ad8884eeb0f3a0ef0`.
+- Existing core/mobile and TV instrumentation suites passed against the unchanged 2.0.9 APKs. Mobile results: `build/mobile-test-b963055081ab4fd39a53b8f3c9c8f388`; TV results: `build/tv-ui-test-35b2796c838445bc8124f15e0f4c6e2f`.
+- Verified startup, NSD, Keystore/TLS, pairing and sending, drafts, dialogs, themes/language and recreation. The TV external-field checks passed cursor/selection insertion, Unicode/multiline input, preservation of the selected IME and restoration of empty/nonempty clipboards while TVText was in the background.
+- Native API 28 does not reproduce the API 31 clipboard restriction below. The API 31 regression remains failing; Android 10–11 and other untested runtimes are not inferred from these results.
+- Per-run evidence: `build/api28-compatibility.json` and `build/api28-compatibility.log`. The combined results are in `build/android-compatibility-summary.json`. Unselected APIs are now labeled `not selected` by the runner, without claiming that their images are unavailable.
+- Application sources, release assets and Git refs remain unchanged; no APK rebuild was needed.
+
+## Native Android 12 checks — 26 October 2026
+
+- Installed the official AOSP/default x86_64 API 31 image in an isolated local AVD. The 657,246,510-byte archive was checked against the official catalog SHA-1 `58bff3cb182c79bbfe3980fe77b87b51b9f7ad71` before extraction.
+- Tested the unchanged 2.0.9 APKs with their matching build records and source fingerprint, using PowerShell 7 as for the original build. Release files and Git refs were not changed.
+- Mobile JVM/controller/TLS and complete API 31 instrumentation passed: `build/mobile-test-2b55480f4a194805ac17cdaf7c686c03`; log `build/api31-compatibility.log`.
+- The TV suite now builds a separate API 28+ field application. Its final scenarios exercise the production receiver engine while another package owns the field: Unicode/multiline insertion at the cursor, selected-range replacement, an initially empty clipboard and preservation of the selected IME.
+- External insertion/selection/IME checks pass on API 31, but the strict TV suite fails its new background clipboard-restoration regression: `build/api31-tv-result-final.log`. The original clipboard is not restored and the sent text remains in it. Existing foreground clipboard checks do not establish background behavior.
+- Android's system log explicitly denies clipboard reads to background `com.tvtext.app`. The regression remains failing. System-log evidence is saved in `build/api31-clipboard-policy.log`; the combined results are in `build/android12-check-report.json`. See the [compatibility details](COMPATIBILITY.md).
+- The expanded API 34 TV suite passed, including all external-field and unchanged-clipboard checks: `build/tv-ui-test-e178257e65554c6881db79c4961f0fa5`, log `build/api34-tv-result-final.log`.
+- The subsequent native API 28 verification is recorded above. API 29–30, 32–33, 35–36 and physical TV firmware remain untested.
+
 ## Source update — 26 October 2026
 
 - The application sources for 2.0.9, including the refactoring and destruction-order fix below, were pushed to `main` in [65c2643](https://github.com/mirror-ru/tvtext/commit/65c26435066e2288e03f64b13a9c14a550ae3a5a).
@@ -166,11 +186,11 @@ The TV accessibility fixture is under `tests/android-tv/fixture/`. It is a contr
 
 The JVM suite cross-checks the phone codec against the production TV protocol and verifies strict UTF-8/frame handling, TLS pinning, pairing, UUID identity, independent TVs, revocation, cancellation, and the absence of automatic text replay.
 
-Instrumentation runs against the real release mobile APK on an Android 14 AOSP ATD emulator. It covers Android NSD discovery, Android Keystore AES-GCM storage, damaged-profile handling, Unicode send routing, success clearing, error preservation, edits during an in-flight send, local rename, unpair/re-pair dialogs, RU/EN switching, rotation, and screenshot capture. Phone and tablet layouts were checked in portrait and landscape sizes.
+Instrumentation runs against the real release mobile APK on isolated Android 9 AOSP, Android 12 AOSP and Android 14 AOSP ATD emulators. It covers Android NSD discovery, Android Keystore AES-GCM storage, damaged-profile handling, Unicode send routing, success clearing, error preservation, edits during an in-flight send, local rename, unpair/re-pair dialogs, RU/EN switching, rotation, and screenshot capture. Phone and tablet layouts were checked in portrait and landscape sizes.
 
 ## Environment and limits
 
-The emulator run used API 34, minSdk 28 was compiled and exercised through the production code paths, and device tests never target a physical phone or TV. Local TLS fixtures listen only on loopback ports 45831–45833; no real TV credentials or external network are used.
+Device runs use API 28, API 31 and API 34 emulators; the API 31 clipboard regression above remains failing. API 28 is verified on the tested AOSP image, without establishing compatibility with every vendor firmware. Device tests never target a physical phone or TV. Local TLS fixtures listen only on loopback ports 45831–45833; no real TV credentials or external network are used.
 
 Physical Google TV firmware, Gboard, vendor accessibility behavior, sleep/wake, and third-party input filters still require a manual Wi-Fi check. An application can transform or reject text after TVText hands it to the active Android field. If no editable field is active, the request is rejected and is not replayed.
 

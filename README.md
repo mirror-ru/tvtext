@@ -122,7 +122,7 @@ Use this directory as the repository root. `.gitignore` excludes build output, e
 
 ## Known limits
 
-Physical TV firmware, Gboard, and third-party input fields can filter, transform, or reject inserted text and still need validation on the target TV. The automated Android tests use an isolated Android 14 emulator and a controlled input field; they do not replace that check. If no active editable field exists, the request is rejected and not replayed later.
+Physical TV firmware, Gboard, and third-party input fields can filter, transform, or reject inserted text and still need validation on the target TV. The automated Android tests use isolated Android 9, Android 12 and Android 14 emulators and controlled input fields; they do not replace that check. Android 10–12 clipboard restrictions can prevent restoration after background Paste, leaving the sent text in the clipboard; this is reproduced on Android 12 and recorded in the compatibility report. If no active editable field exists, the request is rejected and not replayed later.
 
 ## References
 

@@ -1,5 +1,17 @@
 # Android phone/tablet changes
 
+## 26 October 2026 — native Android 9 compatibility
+
+- The unchanged 2.0.9 mobile APK passed core/controller/TLS and the complete instrumentation suite on an isolated official AOSP API 28 emulator, including startup, native NSD/Keystore, pairing/sending and UI behavior.
+- Results: `build/mobile-test-b963055081ab4fd39a53b8f3c9c8f388`; log `build/api28-compatibility.log`; compatibility report `build/api28-compatibility.json`.
+- No application changes or APK rebuild were required. The native result covers the tested AOSP image; physical devices and other Android versions retain their separate test status.
+
+## 26 October 2026 — native Android 12 compatibility
+
+- The unchanged 2.0.9 mobile APK passed JVM/controller/TLS and the complete instrumentation suite on a new isolated official AOSP API 31 emulator.
+- Verified native NSD, saved-pairing startup policy, refresh/cancellation, Keystore, TLS, Unicode delivery, draft/selection behavior, rename/revoke/pairing dialogs, RU/EN, themes and recreation. Results: `build/mobile-test-2b55480f4a194805ac17cdaf7c686c03`, log `build/api31-compatibility.log`.
+- The subsequent API 28 verification is recorded above. Application sources, release files and Git refs were not changed by this verification.
+
 ## 26 October 2026 — local version 2.0.9 rebuild
 
 - Updated the shared version to 2.0.9 / Android code 29 and rebuilt the current mobile sources, including the controller/dialog separation and P3 destruction-order fix.

@@ -48,7 +48,7 @@ try {
 finally {
     $matrix = foreach ($api in @(28,29,30,31,32,33,34,35,36)) {
         $tested = @($results | Where-Object { $_.api -eq $api })
-        if ($tested.Count -gt 0) { $tested } else { [ordered]@{ api = $api; environment = 'not available'; mobile = 'not run'; tv = 'not run' } }
+        if ($tested.Count -gt 0) { $tested } else { [ordered]@{ api = $api; environment = 'not selected'; mobile = 'not run'; tv = 'not run' } }
     }
     $report = [ordered]@{ version = $version.Name; createdUtc = [DateTime]::UtcNow.ToString('o'); emulatorRuns = $results; matrix = @($matrix); physicalDevices = 'not tested by this script' }
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Output) | Out-Null
