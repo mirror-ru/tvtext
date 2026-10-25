@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TVText</string>
+    <string name="version">Version %1$s</string>
+    <string name="televisions">TELEVISIONS</string>
+    <string name="refresh">Find televisions</string>
+    <string name="rename">Rename</string>
+    <string name="connect">Connect</string>
+    <string name="unbind">Unpair</string>
+    <string name="paired">Paired</string>
+    <string name="not_paired">Tap the “Connect” button</string>
+    <string name="search_failed">Could not search: %1$s. Check the Wi-Fi connection</string>
+    <string name="text_prompt">What shall we send to the TV?</string>
+    <string name="text_accessible">Text for the selected television</string>
+    <string name="send">Send to TV</string>
+    <string name="sending">Sending…</string>
+    <string name="pair_heading">Connect your TV</string>
+    <string name="pair_hint">Open TVText on your TV and choose new device pairing. Enter the code shown on the TV</string>
+    <string name="pairing">Connecting to the TV…</string>
+    <string name="pair_code">8-digit code</string>
+    <string name="fingerprint_title">Is this your television?</string>
+    <string name="fingerprint_hint">Compare the fingerprint with TVText on the TV. All four groups must match.</string>
+    <string name="confirm">Yes, connect</string>
+    <string name="cancel">Cancel</string>
+    <string name="bad_pin">The code is incorrect. Check the TV screen.</string>
+    <string name="pair_closed">The code has expired. Open a new code in TVText on the TV.</string>
+    <string name="need_pairing">Pairing is required again. Tap “Connect”</string>
+    <string name="no_field">Open the keyboard in an app on the TV, then send the text again.</string>
+    <string name="disabled">Enable TVText in the TV’s accessibility settings.</string>
+    <string name="uncertain">No confirmation received. Check the text on the TV before sending again.</string>
+    <string name="offline">The TV did not respond. Check Wi-Fi and refresh the list.</string>
+    <string name="address_updated">The TV’s address has been updated. Send the text again.</string>
+    <string name="too_long">The text exceeds 32 KB in UTF-8. Please shorten it.</string>
+    <string name="protocol_error">The TV returned an invalid response. Update TVText on both devices.</string>
+    <string name="rename_title">TV name</string>
+    <string name="rename_hint">This name is only shown on this device</string>
+    <string name="save">Save</string>
+    <string name="invalid_name">Enter a name of 1–80 characters on a single line.</string>
+    <string name="unbind_title">Unpair TV?</string>
+    <string name="unbind_hint">Pair this device again to resume sending text to this TV</string>
+    <string name="unbind_failed_title">The TV could not be notified</string>
+    <string name="unbind_failed">The connection was removed from this device, but the TV did not confirm it. Remove this connection from the connected devices list on the TV</string>
+    <string name="storage_error">Could not read or save the connections. Existing data has been kept.</string>
+    <string name="language">Change language</string>
+    <string name="theme_dark">Switch to dark mode</string>
+    <string name="theme_light">Switch to light mode</string>
+</resources>

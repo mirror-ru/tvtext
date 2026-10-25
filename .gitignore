@@ -1,0 +1,49 @@
+# Local build output and test results, at any project depth
+build/
+dist/
+.local/
+outputs/
+
+# Android Studio and JVM build state
+.gradle/
+.idea/
+.vs/
+bin/
+obj/
+TestResults/
+local.properties
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+*.class
+*.hprof
+
+# Signing material and private certificates
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.pem
+*.key
+*.crt
+
+# Local profile, fixture and log files
+*.dat
+*.log
+
+# Release binaries belong in GitHub Releases, not the source history
+*.apk
+*.aab
+*.exe
+*.dll
+
+# OS/editor noise
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.user
+*.suo
+*.userprefs
+*.tmp
+*.bak

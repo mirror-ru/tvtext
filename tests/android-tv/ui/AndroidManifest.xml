@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="local.tvtext.uitests">
+    <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="34"/>
+    <application android:label="TVText TV theme tests">
+        <service android:name=".TestKeyboard" android:label="TVText test keyboard" android:permission="android.permission.BIND_INPUT_METHOD" android:exported="true">
+            <intent-filter><action android:name="android.view.InputMethod" /></intent-filter>
+            <meta-data android:name="android.view.im" android:resource="@xml/test_input_method" />
+        </service>
+    </application>
+    <instrumentation android:name=".ThemeDeviceTests" android:targetPackage="com.tvtext.app" android:functionalTest="true"/>
+</manifest>

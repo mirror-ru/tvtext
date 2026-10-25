@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TVText</string>
+    <string name="version">Версия %1$s</string>
+    <string name="televisions">ТЕЛЕВИЗОРЫ</string>
+    <string name="refresh">Найти телевизоры</string>
+    <string name="rename">Переименовать</string>
+    <string name="connect">Подключить</string>
+    <string name="unbind">Отвязать</string>
+    <string name="paired">Сопряжён</string>
+    <string name="not_paired">Нажмите на кнопку «Подключить»</string>
+    <string name="search_failed">Не удалось выполнить поиск: %1$s. Проверьте подключение к Wi-Fi</string>
+    <string name="text_prompt">Что отправим на телевизор?</string>
+    <string name="text_accessible">Текст для выбранного телевизора</string>
+    <string name="send">Отправить на ТВ</string>
+    <string name="sending">Отправляем…</string>
+    <string name="pair_heading">Подключим ваш ТВ</string>
+    <string name="pair_hint">На телевизоре откройте TVText и выберите подключение нового устройства. Введите код с экрана ТВ</string>
+    <string name="pairing">Подключаемся к телевизору…</string>
+    <string name="pair_code">Код из 8 цифр</string>
+    <string name="fingerprint_title">Это ваш телевизор?</string>
+    <string name="fingerprint_hint">Сравните отпечаток с TVText на телевизоре. Все четыре группы должны совпадать.</string>
+    <string name="confirm">Да, подключить</string>
+    <string name="cancel">Отмена</string>
+    <string name="bad_pin">Неверный код. Проверьте цифры на экране ТВ.</string>
+    <string name="pair_closed">Срок действия кода истёк. Откройте новый код в TVText на телевизоре.</string>
+    <string name="need_pairing">Нужно новое сопряжение. Нажмите «Подключить»</string>
+    <string name="no_field">Откройте клавиатуру в нужном приложении на ТВ и отправьте текст ещё раз.</string>
+    <string name="disabled">Включите TVText в специальных возможностях телевизора.</string>
+    <string name="uncertain">Нет подтверждения. Проверьте текст на ТВ перед повторной отправкой.</string>
+    <string name="offline">Телевизор не ответил. Проверьте Wi-Fi и обновите список.</string>
+    <string name="address_updated">Адрес телевизора обновлён. Отправьте текст ещё раз.</string>
+    <string name="too_long">Текст превышает 32 КБ в UTF-8. Сократите его.</string>
+    <string name="protocol_error">Некорректный ответ телевизора. Обновите TVText на обоих устройствах.</string>
+    <string name="rename_title">Имя телевизора</string>
+    <string name="rename_hint">Имя будет видно только на этом устройстве</string>
+    <string name="save">Сохранить</string>
+    <string name="invalid_name">Введите от 1 до 80 символов в одну строку.</string>
+    <string name="unbind_title">Отвязать телевизор?</string>
+    <string name="unbind_hint">Чтобы снова отправлять текст с этого устройства, потребуется новое сопряжение</string>
+    <string name="unbind_failed_title">Не удалось уведомить телевизор</string>
+    <string name="unbind_failed">Подключение удалено с этого устройства, но телевизор не подтвердил отвязку. Удалите это подключение в списке подключённых устройств на ТВ</string>
+    <string name="storage_error">Не удалось прочитать или сохранить подключения. Прежние данные сохранены.</string>
+    <string name="language">Сменить язык</string>
+    <string name="theme_dark">Включить ночной режим</string>
+    <string name="theme_light">Включить дневной режим</string>
+</resources>

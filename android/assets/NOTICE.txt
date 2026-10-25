@@ -1,0 +1,6 @@
+TVText includes the Kotlin standard library and JetBrains Java annotations.
+Copyright JetBrains s.r.o. and respective authors and developers.
+These components are distributed under the Apache License, Version 2.0.
+The full license is provided in Apache-2.0.txt.
+
+TVText application code and artwork are separate from these third-party components.

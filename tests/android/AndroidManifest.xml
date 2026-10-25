@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="local.tvtext.mobiletests">
+    <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="34"/>
+    <application android:label="TVText mobile tests"/>
+    <instrumentation android:name=".MobileDeviceTests" android:targetPackage="com.tvtext.mobile.app" android:functionalTest="true"/>
+</manifest>

@@ -1,0 +1,68 @@
+# Android phone/tablet changes
+
+## 25 October 2026 — version 2.0.7 rebuild
+
+- Rebuilt the mobile APK as version `2.0.7`, version code `27`, with package `com.tvtext.mobile.app`.
+- Release artifact: `outputs/TVText-2.0.7/TVText-Mobile-2.0.7.apk`.
+- APK SHA-256: `9611B084DF4840F804D578A33A3999E69F8E377083345D9C34B0263451C26209`.
+- This is a version-only rebuild after the 2.0.6 review; runtime behavior and the protocol are unchanged.
+
+## 25 October 2026 — review fixes
+
+- Restored native Android touch handling for text buttons, icon buttons and TV rows. Controls remain keyboard-focusable, while a touch activates them on the first completed tap without consuming it for focus.
+- TV selection no longer changes on touch-down, cancelled gestures or list scrolling. Moving a finger outside a button cancels its action and preserves native pressed/ripple feedback.
+- Kept keyboard dismissal on TV selection; selecting a TV does not focus the text editor.
+- Split encrypted saved state into paired profiles and local names. Unpairing removes the profile even when it has a custom name; the name is reapplied if the TV is discovered again.
+- Added automatic reading/migration of the previous encrypted storage format, including name-only unpaired records.
+- Mobile UI tests now send actual pointer down/up events. Added cancelled-row, drag-outside, absent renamed TV, rediscovered name and legacy-state migration checks.
+- Full mobile JVM/TLS and Android UI checks passed, including the first tap while the editor has focus: `build/mobile-test-cd3b2bcdebf141a58de58b492c965e6d`.
+
+## 25 October 2026 — version 2.0.6 rebuild
+
+- Rebuilt the mobile APK as version `2.0.6`, version code `26`, with package `com.tvtext.mobile.app`.
+- Release artifact: `outputs/TVText-2.0.6/TVText-Mobile-2.0.6.apk`.
+- APK SHA-256: `2F47F28C45F94F7508A2709B1DE531A0AB6CAC8DACEA6635A121D10CDD1EA73B`.
+
+## 25 October 2026 — new mobile application ID and device selection
+
+- Moved the mobile sender package to `com.tvtext.mobile.app`; this build is intended as a new installation and does not preserve the old application ID.
+- Selecting a TV now applies on the first click and keeps focus on the selected row.
+- Selecting a TV no longer requests or opens the on-screen keyboard; the keyboard is shown only when the user focuses the text field directly.
+- Each mDNS refresh now replaces the previous discovered-device snapshot, so an absent unpaired TV is removed instead of lingering in the list.
+- Touch selection is applied on the first touch-down when the editor previously had focus, avoiding the observed two-tap switch.
+- Rebuilt artifact: `outputs/TVText-Mobile-2.0.5/TVText-Mobile-2.0.5.apk`.
+- APK SHA-256: `20D3F91169380485BAEAFD65FAE736FD54D2BFDBE44B75F74C1D75CB18577756`.
+- Mobile JVM/TLS checks passed: `build/mobile-test-419e09298db5405dbb58ae678464a3a2`.
+
+## 24 October 2026 — version 2.0.4 rebuild
+
+- Rebuilt the phone/tablet APK as version `2.0.4`, version code `24`; no behavior changes were introduced.
+- Release artifact: `outputs/TVText-2.0.4/TVText-Mobile-2.0.4.apk` (70,040 bytes).
+- APK SHA-256: `16C17B1B0B8A339CED29A5A36A4DD79B9B5479822557150E5B2B8423ED211B07`.
+- The v3 signing certificate remains the same as the 2.0.3 build, so the APK supports an in-place update.
+
+## 24 October 2026 — Windows 2.0.3 changes adapted to mobile
+
+- Mobile version: `2.0.3`, version code `23`.
+- Added a day/night button beside RU/EN. Day mode is the default; the preference is saved locally. Main content, TV rows, artwork, inputs, dialogs and system bars use the selected palette.
+- Theme/language changes preserve the draft, text selection, selected TV and scroll position. Settings retain focus after switching.
+- Refresh rotates only its icon using the Android animation clock. It stops on completion or when the screen stops, and survives a UI rebuild without leaving an old animation running. Removed searching/list-updated messages.
+- Startup discovery runs once only if there are no saved paired TVs. Saved pairings open immediately without a scan; Refresh and send-error endpoint recovery remain available. Discovery is bounded to five seconds.
+- Removed the common status line and empty-list instructions. A normal empty result stays blank. Discovery/storage errors without a TV appear inside the list area; other operation messages appear below the relevant TV name. Search failures include the cause and a Wi-Fi hint.
+- Successful pairing, sending, rename and unpair complete silently. Paired rows show the neutral `Сопряжён`; unpaired rows show `Нажмите на кнопку «Подключить»` / `Tap the “Connect” button`.
+- Tapping a paired TV focuses the text input and requests the on-screen keyboard. No F2 shortcut is added on Android.
+- Reserve space for three TV rows; longer lists and input beyond three lines scroll with fading scrollbars. Font scaling is accounted for in row height.
+- Updated sender wording to «устройство» / “device”. The TV receiver APK is not changed in this task.
+- Refined the rename dialog with a TV badge, rounded themed input, validated Save button, IME Done support and a helper without a final full stop: `Имя будет видно только на этом устройстве`.
+- Extended emulator tests for startup policy, refresh animation, TV-local errors, preserved draft/selection, theme persistence, recreation and themed rename. All device tests target the isolated `emulator-5580` only.
+
+### Verification
+
+- Mobile JVM/TLS tests passed, followed by Android 14 instrumentation on a 1080×2400 phone at 420 dpi and a 1600×2560 tablet at 240 dpi. Final run: `build/mobile-test-3f9e6c6fe94e4b53a7fb772e3dcd3aee` (the same installed test APK was then rerun at the tablet size).
+- Checks include more than three TVs, unpaired-row wording and focus, actual background/foreground discovery cancellation, paired-row input focus, localized device errors, theme/language switching, saved theme after recreation, and send/pair/unpair behavior.
+- Captured and visually checked real emulator screenshots in both themes on phone and tablet.
+- APK metadata: `local.tvtext.mobile`, version `2.0.3` / `23`, minSdk `28` (Android 9), targetSdk `34`; small/normal/large/xlarge screens supported. Android 9 compatibility is compiled; runtime checks in this run use Android 14.
+- APK signature and zip alignment verified. The signing certificate matches the previous mobile 2.0.2 release, allowing an in-place update.
+- Artifact: `outputs/TVText-2.0.3/TVText-Mobile-2.0.3.apk` (70,040 bytes).
+- APK SHA-256: `FC83EA1187DEB62C0EDBD61A4C153C7128440A7F980735C093DD5AAD0CCAB283`.
+- Phone screenshots: `TVText-Mobile-2.0.3-light.png` and `TVText-Mobile-2.0.3-dark.png`; tablet screenshots: `TVText-Tablet-2.0.3-light.png` and `TVText-Tablet-2.0.3-dark.png`, in the same output directory.
