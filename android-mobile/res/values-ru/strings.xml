@@ -10,6 +10,7 @@
     <string name="paired">Сопряжён</string>
     <string name="not_paired">Нажмите на кнопку «Подключить»</string>
     <string name="search_failed">Не удалось выполнить поиск: %1$s. Проверьте подключение к Wi-Fi</string>
+    <string name="search_busy">Поиск ещё занят. Повторите обновление через некоторое время</string>
     <string name="text_prompt">Что отправим на телевизор?</string>
     <string name="text_accessible">Текст для выбранного телевизора</string>
     <string name="send">Отправить на ТВ</string>

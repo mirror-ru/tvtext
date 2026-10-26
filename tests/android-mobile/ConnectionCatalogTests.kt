@@ -45,6 +45,20 @@ object ConnectionCatalogTests {
         check(catalog.hasPairings() && catalog.profile(other.id) == other)
         runCatching { (catalog.choices() as MutableList).clear() }
         check(catalog.choices().size == 1)
+
+        val transient = first.copy(id = UUID.randomUUID().toString(), name = "Found TV")
+        catalog.discover(transient) // Never retain advertised credentials in recreation state.
+        val snapshot = catalog.advertisements()
+        check(snapshot.single().id == transient.id && snapshot.single().token.isEmpty() && snapshot.single().fingerprint.isEmpty())
+        catalog.invalidate(other.id)
+        val recreated = ConnectionCatalog { _, _ -> }.apply {
+            restore(mapOf(other.id to other), emptyMap())
+            snapshot.forEach(::discover)
+            restoreInvalidIds(catalog.invalidIds() + transient.id)
+        }
+        check(recreated.choices().map { it.id }.toSet() == setOf(other.id, transient.id))
+        check(!recreated.isPaired(recreated.choices().first { it.id == other.id }))
+        check(recreated.invalidIds() == listOf(other.id))
         println("PASS: mobile catalog isolates mutable state, credentials and aliases; failed writes preserve pairings/endpoints; unpair removes offline rows")
     }
 }

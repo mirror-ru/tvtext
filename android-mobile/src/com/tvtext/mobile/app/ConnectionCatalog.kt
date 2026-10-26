@@ -15,6 +15,12 @@ class ConnectionCatalog(private val save: (Map<String, Tv>, Map<String, String>)
     fun hasPairings() = profiles.values.any { it.paired }
     fun profile(id: String): Tv? = profiles[id]
     fun advertisement(id: String): Tv? = discovered[id]
+    fun advertisements(): List<Tv> = discovered.values.toList()
+    fun invalidIds(): List<String> = invalidKeys.toList()
+    fun restoreInvalidIds(ids: Collection<String>) {
+        invalidKeys.clear()
+        invalidKeys.addAll(ids.filter { it in profiles })
+    }
     fun beginDiscovery() { discovered.clear() }
     fun discover(tv: Tv) { discovered[tv.id] = tv.copy(token = "", fingerprint = "", alias = "") }
     fun invalidate(id: String) { invalidKeys.add(id) }

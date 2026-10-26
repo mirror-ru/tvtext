@@ -1,5 +1,10 @@
 # Windows EXE changes
 
+## 26 October 2026 — shared build verification (local, unreleased)
+
+- Source fingerprints now sort normalized relative paths with ordinal comparison, so identical sources produce the same fingerprint in Windows PowerShell 5.1 and PowerShell 7. This fixes APK/JAR verification across those hosts and applies to all application targets.
+- Added a cross-host tooling regression. Existing release binaries are retained; local test builds use fresh build records.
+
 ## 26 October 2026 — local version 2.0.9 rebuild
 
 - Rebuilt Windows with assembly/file/product version 2.0.9.0 generated from `version.json`, including the current sender-workflow refactoring.

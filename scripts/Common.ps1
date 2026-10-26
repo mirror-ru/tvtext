@@ -112,9 +112,14 @@ function Get-SourceFingerprint {
     foreach ($directory in @('scripts', 'android-mobile', 'android-tv', 'windows')) {
         $files += @(Get-ChildItem -LiteralPath (Join-Path $script:ProjectRoot $directory) -File -Recurse)
     }
-    $lines = foreach ($file in ($files | Sort-Object FullName)) {
-        $relative = $file.FullName.Substring($script:ProjectRoot.Length + 1).Replace('\', '/')
-        $relative + ':' + (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
+    [string[]]$relativePaths = @($files | ForEach-Object {
+        $_.FullName.Substring($script:ProjectRoot.Length + 1).Replace('\', '/')
+    })
+    # Sort-Object uses host-dependent culture rules. The build record must be
+    # identical under Windows PowerShell 5.1 and PowerShell 7.
+    [Array]::Sort($relativePaths, [StringComparer]::Ordinal)
+    $lines = foreach ($relative in $relativePaths) {
+        $relative + ':' + (Get-FileHash -LiteralPath (Join-Path $script:ProjectRoot $relative) -Algorithm SHA256).Hash
     }
     $sha = [Security.Cryptography.SHA256]::Create()
     try { ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes(($lines -join "`n"))))).Replace('-', '') }

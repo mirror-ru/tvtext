@@ -37,6 +37,21 @@ foreach ($badVersion in @('{"name":"2.3","androidCode":28}', '{"name":"2.3.4","a
 }
 Assert-Rejected { Assert-ToolVersion 'Kotlin' 'different' 'pinned' } 'version mismatch'
 
+# Build records must remain valid when build and test use different PowerShell hosts.
+$alternateHost = if ($PSVersionTable.PSVersion.Major -ge 6) {
+    Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe'
+} else {
+    $pwsh = Get-Command 'pwsh.exe' -ErrorAction SilentlyContinue
+    if ($pwsh) { $pwsh.Source }
+}
+if ($alternateHost -and (Test-Path -LiteralPath $alternateHost)) {
+    $fingerprintProbe = Join-Path $run 'fingerprint-probe.ps1'
+    $commonPath = (Join-Path $project 'scripts\Common.ps1').Replace("'", "''")
+    Write-Fixture $fingerprintProbe (". '$commonPath'`nGet-SourceFingerprint`n")
+    $alternateHash = (& $alternateHost -NoProfile -ExecutionPolicy Bypass -File $fingerprintProbe | Out-String).Trim()
+    Assert-True ($LASTEXITCODE -eq 0 -and $alternateHash -ceq (Get-SourceFingerprint)) 'Source fingerprint differs between PowerShell hosts.'
+} else { Write-Output 'SKIP: alternate PowerShell host is not installed.' }
+
 # Prove Windows-only builds do not touch Android tools or create a signing key.
 $copy = Join-Path $run 'project'
 New-Item -ItemType Directory -Path $copy | Out-Null

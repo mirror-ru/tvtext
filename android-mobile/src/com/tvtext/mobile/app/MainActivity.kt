@@ -38,6 +38,8 @@ class MainActivity : Activity() {
     private var language = "ru"
     private var darkMode = false
     private var startupChecked = false
+    private var resumeScanAfterRecreate = false
+    private var scanAtStop = false
     private val busy get() = controller.busy
     private val scanning get() = controller.scanning
     private val storageHealthy get() = controller.storageHealthy
@@ -86,8 +88,10 @@ class MainActivity : Activity() {
         dialogs = SenderDialogs(this, { palette }, { text(it) })
         try { store.loadState().let { catalog.restore(it.profiles, it.names) } }
         catch (_: Exception) { controller.storageFailed() }
+        restoreDeviceState(state)
         selectedId = state?.getString("selected") ?: getPreferences(MODE_PRIVATE).getString("selected", "").orEmpty()
         startupChecked = state?.getBoolean("startup-checked") ?: false
+        resumeScanAfterRecreate = state?.getBoolean("resume-scan") ?: false
         buildUi(state?.getString("draft").orEmpty())
         state?.let { input.setSelection(it.getInt("selection-start",input.length()).coerceIn(0,input.length()),it.getInt("selection-end",input.length()).coerceIn(0,input.length())) }
         if (!storageHealthy) message("storage_error", true)
@@ -95,9 +99,12 @@ class MainActivity : Activity() {
     }
     override fun onStart() {
         super.onStart()
+        scanAtStop = false
         if(!startupChecked) { startupChecked = true; if(!catalog.hasPairings()) scan() }
+        else if(resumeScanAfterRecreate) { resumeScanAfterRecreate = false; controller.scan(preserveExisting = true) }
     }
     override fun onStop() {
+        scanAtStop = scanning
         controller.stopDiscovery()
         super.onStop()
     }
@@ -111,7 +118,24 @@ class MainActivity : Activity() {
     override fun onSaveInstanceState(out: Bundle) {
         out.putString("draft", input.text.toString()); out.putString("selected", selectedId); out.putBoolean("sending", sending)
         out.putBoolean("startup-checked",startupChecked); out.putInt("selection-start",input.selectionStart); out.putInt("selection-end",input.selectionEnd)
+        out.putBoolean("resume-scan", scanning || scanAtStop)
+        out.putStringArrayList("invalid-ids", ArrayList(catalog.invalidIds()))
+        out.putParcelableArrayList("discovered", ArrayList(catalog.advertisements().map { tv ->
+            Bundle().apply { putString("id", tv.id); putString("name", tv.name); putString("host", tv.endpoint.host); putInt("port", tv.endpoint.port) }
+        }))
         super.onSaveInstanceState(out)
+    }
+    private fun restoreDeviceState(state: Bundle?) {
+        if (state == null) return
+        catalog.restoreInvalidIds(state.getStringArrayList("invalid-ids").orEmpty())
+        val devices = runCatching { state.getParcelableArrayList<Bundle>("discovered") }.getOrNull().orEmpty()
+        devices.take(100).forEach { item ->
+            val id = item.getString("id").orEmpty(); val name = item.getString("name").orEmpty()
+            if (Wire.validId(id) && name.isNotBlank() && name.length <= 160) {
+                runCatching { Tv(id, name, Endpoint(item.getString("host").orEmpty(), item.getInt("port"))) }
+                    .getOrNull()?.let(catalog::discover)
+            }
+        }
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
     private fun text(key: String, vararg args: Any): String {
@@ -322,7 +346,7 @@ class MainActivity : Activity() {
             }
         } else { refreshAnimation?.cancel();refreshAnimation=null;(refresh as Artwork).glyphRotation=0f }
     }
-    private fun scan(completion: (() -> Unit)? = null) = controller.scan(completion)
+    private fun scan(completion: (() -> Unit)? = null) = controller.scan(completion = completion)
     private fun pair(tv: Tv) {
         dialogs.pair { pin -> controller.probe(tv) { fingerprint ->
             dialogs.fingerprint(fingerprint, {

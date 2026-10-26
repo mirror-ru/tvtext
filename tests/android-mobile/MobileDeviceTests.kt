@@ -24,7 +24,9 @@ import android.widget.TextView
 import com.tvtext.mobile.app.*
 import java.io.File
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class MobileDeviceTests : Instrumentation() {
     private lateinit var activity: MainActivity
@@ -102,8 +104,59 @@ class MobileDeviceTests : Instrumentation() {
         },NsdManager.PROTOCOL_DNS_SD,listener)
         registrations.add(listener); check(started.await(10,TimeUnit.SECONDS))
     }
+    private fun nsdRetryChecks() {
+        class FakeNsd(private val alwaysBusy: Boolean = false) : NsdBackend {
+            @Volatile var listener: NsdManager.DiscoveryListener? = null
+            val resolves = CopyOnWriteArrayList<NsdManager.ResolveListener>()
+            val attempts = AtomicInteger()
+            override fun discover(listener: NsdManager.DiscoveryListener) { this.listener=listener }
+            override fun stop(listener: NsdManager.DiscoveryListener) { if(this.listener===listener)this.listener=null }
+            override fun resolve(info: NsdServiceInfo, listener: NsdManager.ResolveListener) {
+                attempts.incrementAndGet(); resolves.add(listener)
+                if(alwaysBusy) listener.onResolveFailed(info,NsdManager.FAILURE_ALREADY_ACTIVE)
+            }
+            fun found(info: NsdServiceInfo) { checkNotNull(listener).onServiceFound(info) }
+        }
+        val info=NsdServiceInfo().apply {
+            serviceName="TVText retry fixture";serviceType="_tvtext._tcp.";port=45831
+            host=java.net.InetAddress.getByName("127.0.0.1")
+            setAttribute("id","f7e69b4b-f95f-44ef-b5a0-100fab7221e1");setAttribute("v","1");setAttribute("ipv4-only","1")
+        }
+        val backend=FakeNsd();val found=CopyOnWriteArrayList<Tv>();val done=CopyOnWriteArrayList<Boolean>()
+        val discovery=TvDiscovery(targetContext,backend,1800)
+        ui { discovery.start({found.add(it)},{done.add(it)});backend.found(info) }
+        waitUntil { backend.resolves.size==1 }
+        val old=backend.resolves[0]
+        ui { discovery.stop();discovery.start({found.add(it)},{done.add(it)});backend.found(info) }
+        waitUntil { backend.resolves.size==2 }
+        ui { backend.resolves[1].onResolveFailed(info,NsdManager.FAILURE_ALREADY_ACTIVE) }
+        waitUntil { backend.resolves.size>=3 }
+        ui { old.onServiceResolved(info) }
+        check(found.isEmpty()) { "A stale resolve must not publish a device" }
+        ui { backend.resolves[2].onServiceResolved(info) }
+        waitUntil { found.size==1 }
+        waitUntil { done.isNotEmpty() }
+        check(done.single()&&found.single().id=="f7e69b4b-f95f-44ef-b5a0-100fab7221e1") { "Busy resolve must retry and publish the current TV" }
+
+        val busy=FakeNsd(alwaysBusy=true);val busyDone=CopyOnWriteArrayList<Boolean>()
+        val bounded=TvDiscovery(targetContext,busy,1200)
+        ui { bounded.start({}, {busyDone.add(it)});busy.found(info) }
+        waitUntil { busyDone.isNotEmpty() }
+        check(!busyDone.single()&&bounded.resolutionBusy&&busy.attempts.get() in 1..7) { "Persistent NSD contention must be bounded and reported" }
+        val finishedCount=busy.attempts.get();Thread.sleep(300);waitForIdleSync()
+        check(busy.attempts.get()==finishedCount) { "Retries must stop after the scan deadline" }
+
+        val cancelled=FakeNsd(alwaysBusy=true);val cancelledDone=CopyOnWriteArrayList<Boolean>()
+        val stopped=TvDiscovery(targetContext,cancelled,5000)
+        ui { stopped.start({}, {cancelledDone.add(it)});cancelled.found(info) }
+        waitUntil { cancelled.attempts.get()>0 }
+        ui { stopped.stop() };val stoppedCount=cancelled.attempts.get()
+        Thread.sleep(350);waitForIdleSync()
+        check(cancelled.attempts.get()==stoppedCount&&cancelledDone.isEmpty()) { "Stopping discovery must cancel scheduled retries" }
+    }
     override fun onStart() {
         try {
+            nsdRetryChecks()
             val ssl=PhoneFixture.context(context.assets.open("fixture.p12"))
             PhoneFixture(ssl,"f7e69b4b-f95f-44ef-b5a0-100fab7221e1").use { first ->
                 PhoneFixture(ssl,"d4a8b0d9-f16f-41a8-a372-7fb6981b59aa").use { second ->
@@ -122,6 +175,35 @@ class MobileDeviceTests : Instrumentation() {
                     check(activity.window.decorView.findViewWithTag<View>("status")==null)
                     check(view("list-error").textIsEmpty())
                     waitUntil { controller().scanning==false };check(field("refreshAnimation")==null)
+
+                    // A discovered but unpaired device must survive recreation without
+                    // causing an unsolicited fresh scan. An interrupted scan resumes.
+                    val transient=a.copy(token="",fingerprint="")
+                    fun showTransient() {
+                        (field("catalog") as ConnectionCatalog).discover(transient)
+                        MainActivity::class.java.getDeclaredMethod("renderDevices").apply { isAccessible=true }.invoke(activity)
+                    }
+                    ui { showTransient() }
+                    check(view("tv-${transient.id}").isShown)
+                    val restoredMonitor=addMonitor(MainActivity::class.java.name,null,false)
+                    ui { activity.recreate() }
+                    activity=waitForMonitorWithTimeout(restoredMonitor,10000) as? MainActivity ?: error("Unpaired recreation failed")
+                    removeMonitor(restoredMonitor);waitForIdleSync()
+                    check(view("tv-${transient.id}").isShown&&!controller().scanning) { "Unpaired discovery must survive recreation" }
+                    check((field("catalog") as ConnectionCatalog).profile(transient.id)==null)
+                    ui { check(view("refresh").performClick());check(controller().scanning);showTransient() }
+                    val activeMonitor=addMonitor(MainActivity::class.java.name,null,false)
+                    ui { activity.recreate() }
+                    activity=waitForMonitorWithTimeout(activeMonitor,10000) as? MainActivity ?: error("Active scan recreation failed")
+                    removeMonitor(activeMonitor);waitForIdleSync()
+                    val transientVisible=activity.window.decorView.findViewWithTag<View>("tv-${transient.id}")?.isShown==true
+                    val resumedAtStart=initialScans[activity]==true
+                    val discoveryField=SenderController::class.java.getDeclaredField("discovery").apply { isAccessible=true }
+                    val resumeError=(discoveryField.get(controller()) as TvDiscovery).lastError
+                    check(resumedAtStart&&transientVisible&&resumeError.isEmpty()) {
+                        "Interrupted scan must resume without dropping discovered TVs: scanning=${controller().scanning}, atStart=$resumedAtStart, visible=$transientVisible, error=$resumeError, startup=${field("startupChecked")}, resume=${field("resumeScanAfterRecreate")}, stoppedScan=${field("scanAtStop")}"
+                    }
+                    waitUntil { !controller().scanning }
                     ui { activity.finish() }
                     store.save(linkedMapOf(a.id to a,b.id to b)); check(store.load().values.toList()==listOf(a,b))
                     check(store.loadState().names[b.id]==b.alias && store.loadState().profiles[b.id]?.alias=="") { "Aliases are stored separately from paired profiles" }

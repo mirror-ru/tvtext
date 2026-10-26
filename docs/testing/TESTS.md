@@ -1,5 +1,12 @@
 # TVText test report
 
+## Review fixes — 26 October 2026
+
+- Tested restoration of discovered TVs across activity recreation, resumption of interrupted scans, retries of busy NSD resolutions and cancellation. The test mobile build from current local sources passed the Android 9 suite: `build/mobile-test-2f8ad96b7bc14bd7b0b5501fde58b8dc`, log `build/review-fixes-api28-mobile3.log`; Android 14: `build/mobile-test-1f5bf0a7c86c41b290115f62e1aee0fb`, log `build/review-fixes-api34-mobile3.log`.
+- The mobile suite also passed on Android 12: `build/mobile-test-f14c9693006f407bb5b65426ed40c0a8`, log `build/review-fixes-api31-mobile3-retry.log`. The first attempt was interrupted by a nonresponsive emulator system dialog (`build/review-fixes-api31-mobile3.log`); the retry followed an emulator restart and screen-size reset.
+- The full core Windows/TV/TLS suite passed: `build/test-1ba82da728a346568dbb651aaa3621c6`. Source fingerprint tests passed in PowerShell 5.1 and 7; the test APK built under PowerShell 7 was accepted by the PowerShell 5.1 test preflight.
+- This separate test build does not overwrite 2.0.9 release assets. The Android 12 background clipboard limitation and failing regression described below remain: the TV receiver code was not changed.
+
 ## Native Android 9 checks — 26 October 2026
 
 - Installed the official AOSP/default x86_64 API 28 revision 4 image in an isolated local AVD. Verified the 564,792,723-byte archive against catalog SHA-1 `d47a85c8f4e9fd57df97814ad8884eeb0f3a0ef0`.

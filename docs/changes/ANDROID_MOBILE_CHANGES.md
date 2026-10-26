@@ -1,5 +1,12 @@
 # Android phone/tablet changes
 
+## 26 October 2026 — review fixes (local, unreleased)
+
+- Preserve discovered TV advertisements and invalid-pairing state across activity recreation without saving credentials in the activity state. An interrupted scan resumes with its already discovered TVs; a fresh manual scan still clears stale results. Saved pairings continue to suppress unsolicited startup scans.
+- Retry `FAILURE_ALREADY_ACTIVE` within the existing five-second NSD scan instead of dropping the device. If the old resolve remains active until the deadline, show a localized message asking the user to refresh again; stop and stale callbacks cannot restart a retry.
+- Added catalog/controller and Android instrumentation checks for recreation, interrupted scans, stale callbacks, bounded retries and cancellation.
+- The Android 12 background clipboard limitation belongs to the TV receiver and remains documented separately.
+
 ## 26 October 2026 — native Android 9 compatibility
 
 - The unchanged 2.0.9 mobile APK passed core/controller/TLS and the complete instrumentation suite on an isolated official AOSP API 28 emulator, including startup, native NSD/Keystore, pairing/sending and UI behavior.

@@ -20,6 +20,7 @@ object SenderControllerTests {
     }
     private class Discovery : SenderController.Discovery {
         override val lastError = "Fixture discovery error"
+        override var resolutionBusy = false
         var starts = 0
         var found: (Tv) -> Unit = {}
         var done: (Boolean) -> Unit = {}
@@ -87,6 +88,21 @@ object SenderControllerTests {
             check(catalog.choices().size==1&&controller.scanning&&notices.isEmpty())
             discovery.found(stranger); discovery.done(true)
             check(catalog.choices().size==2&&!controller.scanning)
+            controller.destroy()
+        }
+        Fixture().apply {
+            controller.scan(); discovery.resolutionBusy=true; discovery.done(false)
+            check(notices.last().key=="search_busy"&&notices.last().detail==null)
+            controller.destroy()
+        }
+        Fixture().apply {
+            val unpaired=tv.copy(id=UUID.randomUUID().toString(),token="",fingerprint="")
+            catalog.discover(unpaired)
+            controller.scan(preserveExisting=true)
+            check(catalog.choices().any { it.id == unpaired.id }) { "Resuming an interrupted scan must retain already discovered TVs" }
+            discovery.done(true)
+            controller.scan()
+            check(catalog.choices().none { it.id == unpaired.id }) { "A fresh manual scan must still clear stale discoveries" }
             controller.destroy()
         }
         Fixture().apply {

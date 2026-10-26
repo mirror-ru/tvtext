@@ -18,6 +18,7 @@ class SenderController(
 ) {
     interface Discovery {
         val lastError: String
+        val resolutionBusy: Boolean get() = false
         fun start(foundCallback: (Tv) -> Unit, doneCallback: (Boolean) -> Unit)
         fun stop()
     }
@@ -46,16 +47,20 @@ class SenderController(
         check(storageHealthy); action(); true
     } catch (_: Exception) { message("storage_error", true, target); false }
 
-    fun scan(completion: (() -> Unit)? = null) {
+    fun scan(preserveExisting: Boolean = false, completion: (() -> Unit)? = null) {
         if (scanning || busy || destroyed) return
         val generation = ++scanGeneration
-        catalog.beginDiscovery(); scanning = true; changed(true)
+        if (!preserveExisting) catalog.beginDiscovery()
+        scanning = true; changed(true)
         discovery.start({ tv ->
             if (!destroyed && scanning && generation == scanGeneration) { catalog.discover(tv); changed(true) }
         }, { success ->
             if (!destroyed && scanning && generation == scanGeneration) {
                 scanning = false; changed(false)
-                if (!success) message("search_failed", true, detail = discovery.lastError)
+                if (!success) {
+                    if (discovery.resolutionBusy) message("search_busy", true)
+                    else message("search_failed", true, detail = discovery.lastError)
+                }
                 completion?.invoke()
             }
         })

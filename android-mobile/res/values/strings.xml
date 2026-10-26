@@ -10,6 +10,7 @@
     <string name="paired">Paired</string>
     <string name="not_paired">Tap the “Connect” button</string>
     <string name="search_failed">Could not search: %1$s. Check the Wi-Fi connection</string>
+    <string name="search_busy">Search is still busy. Try refreshing again in a moment</string>
     <string name="text_prompt">What shall we send to the TV?</string>
     <string name="text_accessible">Text for the selected television</string>
     <string name="send">Send to TV</string>

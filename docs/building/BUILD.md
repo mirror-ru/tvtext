@@ -39,6 +39,8 @@ The script creates a new candidate directory under `outputs/` only after the req
 
 Each APK receives an adjacent `<filename>.apk.build.json` record. It contains the APK SHA-256, the exact `app.jar` path and hash, a fingerprint of application/build sources, the version, and toolchain pins. It contains no signing keys, passwords, or pairing credentials. This is a local consistency check, not a cryptographic attestation. Keep it locally for device tests; it is not a release asset.
 
+Fingerprint paths now use the same order under Windows PowerShell 5.1 and PowerShell 7. After the fingerprint algorithm and sources change, old build records no longer match the current project: rebuild the APK and its record with the existing signing key.
+
 ```powershell
 .\test-mobile.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
