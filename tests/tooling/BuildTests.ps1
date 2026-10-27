@@ -96,6 +96,40 @@ Write-ApkBuildRecord $apk $jar 'android-mobile' $version $sourceHash
 Write-Fixture $jar 'modified classes'
 Assert-Rejected { Resolve-TestBuild $apk $jar 'android-mobile' } 'app.jar hash differs'
 
+# Exercise the Core release entry point before tool/APK verification: edits made
+# by the builder must be rejected, and unchanged sources still require records.
+$guard = Join-Path $run 'release-guard'
+New-Item -ItemType Directory -Path $guard | Out-Null
+foreach ($file in @('prepare-release.ps1','version.json','toolchain.json','release-signing.json')) {
+    Copy-Item -LiteralPath (Join-Path $project $file) -Destination $guard
+}
+Copy-Item -LiteralPath (Join-Path $project 'scripts') -Destination $guard -Recurse
+Add-Content -LiteralPath (Join-Path $guard 'scripts\Common.ps1') -Value @'
+
+function Resolve-JvmTools { [pscustomobject]@{} }
+function Resolve-AndroidTools { [pscustomobject]@{} }
+function Get-SourceFingerprint { (Get-FileHash -LiteralPath (Join-Path $script:ProjectRoot 'guard-state.txt') -Algorithm SHA256).Hash }
+'@
+Write-Fixture (Join-Path $guard 'build.ps1') @'
+param([string]$Sdk,[string]$Jdk,[string]$Kotlin,[string]$Target,[string]$Output)
+. (Join-Path $PSScriptRoot 'scripts\Common.ps1')
+if ((Get-Content -LiteralPath (Join-Path $PSScriptRoot 'guard-mode.txt') -Raw).Trim() -eq 'change') {
+    Add-Content -LiteralPath (Join-Path $PSScriptRoot 'guard-state.txt') -Value 'edited during build'
+}
+New-Item -ItemType Directory -Force -Path $Output | Out-Null
+$version=Read-ProjectVersion
+foreach($name in @("TVText-TV-$($version.Name).apk","TVText-Mobile-$($version.Name).apk")) {
+    Set-Content -LiteralPath (Join-Path $Output $name) -Value 'fixture without build record'
+}
+'@
+Write-Fixture (Join-Path $guard 'guard-state.txt') 'before build'
+Write-Fixture (Join-Path $guard 'guard-mode.txt') 'change'
+Assert-Rejected { & (Join-Path $guard 'prepare-release.ps1') -Tests Core -Output (Join-Path $guard 'changed-candidate') } 'Sources changed during build'
+Assert-True (!(Test-Path -LiteralPath (Join-Path $guard 'changed-candidate'))) 'Changed sources produced a release candidate.'
+Write-Fixture (Join-Path $guard 'guard-mode.txt') 'unchanged'
+Assert-Rejected { & (Join-Path $guard 'prepare-release.ps1') -Tests Core -Output (Join-Path $guard 'missing-record-candidate') } 'Matching build record'
+Assert-True (!(Test-Path -LiteralPath (Join-Path $guard 'missing-record-candidate'))) 'Core release accepted an APK without a matching record.'
+
 $release = Join-Path $run 'release'
 New-Item -ItemType Directory -Path $release | Out-Null
 $assets = @(Get-ReleaseAssetNames $version)

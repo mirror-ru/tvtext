@@ -30,7 +30,7 @@
     <string name="disabled">Enable TVText in the TV’s accessibility settings.</string>
     <string name="uncertain">No confirmation received. Check the text on the TV before sending again.</string>
     <string name="offline">The TV did not respond. Check Wi-Fi and refresh the list.</string>
-    <string name="address_updated">The TV’s address has been updated. Send the text again.</string>
+    <string name="address_updated">TV connection restored. Check the TV text before trying again.</string>
     <string name="too_long">The text exceeds 32 KB in UTF-8. Please shorten it.</string>
     <string name="protocol_error">The TV returned an invalid response. Update TVText on both devices.</string>
     <string name="rename_title">TV name</string>

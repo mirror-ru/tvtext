@@ -33,6 +33,27 @@ internal static class ConnectionSaveTests
                 Check((bool)apply.Invoke(form,new object[]{saved,"127.0.0.2:45831"}),"subsequent successful save clears warning");
                 Check(list.DeviceCaption((DiscoveredTv)list.Items[0]).Length==0&&Connection.Load().Endpoint==saved.Endpoint,"new address persists and warning clears");
             }
+            Connection.StoragePathOverride=Path.Combine(directory,"multiple-windows.dat");
+            var old=new Connection{DeviceId=Guid.NewGuid().ToString(),Name="TV",Endpoint="127.0.0.1:45831",Token=new string('a',64),Fingerprint=new string('b',64)};
+            old.Save();
+            var stale=Connection.Load();
+            var newer=new Connection{DeviceId=old.DeviceId,Name="TV",Endpoint="127.0.0.2:45831",Token=new string('c',64),Fingerprint=new string('b',64)};
+            newer.Save();
+            stale.SaveSelection();
+            Check(Connection.Load().Token==newer.Token&&Connection.Load().Endpoint==newer.Endpoint,"selection from an older window preserves current credentials and address");
+            bool rejected=false;
+            try{stale.Endpoint="127.0.0.3:45831";stale.Save();}catch(IOException){rejected=true;}
+            Check(rejected&&Connection.Load().Token==newer.Token,"stale address persistence cannot overwrite a new pairing");
+            var sameKeyStale=Connection.Load();
+            newer.Endpoint="127.0.0.4:45831";newer.Save();
+            rejected=false;
+            try{sameKeyStale.Save();}catch(IOException){rejected=true;}
+            Check(rejected&&Connection.Load().Endpoint==newer.Endpoint,"stale same-key profiles cannot revert newer addresses");
+            Connection.Forget(old.DeviceId);
+            rejected=false;try{stale.SaveSelection();}catch(IOException){rejected=true;}
+            Check(rejected&&Connection.LoadAll().Count==0,"selection cannot resurrect a removed profile");
+            rejected=false;try{stale.Save();}catch(IOException){rejected=true;}
+            Check(rejected&&Connection.LoadAll().Count==0,"endpoint persistence cannot resurrect a removed profile");
             Console.WriteLine("PASS: Windows address recovery reports failed writes, preserves draft/session and disk data, and clears warnings only after saving");
         }
         finally

@@ -25,7 +25,13 @@ namespace TvText
         {this.exchange=exchange;this.discover=discover;this.verify=verify;this.probe=probe;this.save=save;}
 
         internal Task<List<DiscoveredTv>> DiscoverAsync(int milliseconds,CancellationToken token) {return discover(milliseconds,token);}
-        internal Task<DiscoveredTv> VerifyAsync(Connection saved,IEnumerable<DiscoveredTv> list,CancellationToken token) {return verify(saved,list,token);}
+        internal Task<DiscoveredTv> VerifyAsync(Connection saved,IEnumerable<DiscoveredTv> list,CancellationToken token,bool includeCurrent=false)
+        {
+            if(includeCurrent)return verify(saved,list,token);
+            var changed=new List<DiscoveredTv>();
+            foreach(var tv in list)if(tv.Endpoint!=saved.Endpoint)changed.Add(tv);
+            return verify(saved,changed,token);
+        }
         internal Task<string> ProbeAsync(string endpoint,CancellationToken token)
         {return Task.Run(delegate{token.ThrowIfCancellationRequested();return probe(endpoint,token);},token);}
         internal bool TrySave(Connection value)
@@ -85,7 +91,10 @@ namespace TvText
                 failure=error;
             }
             var result=new SendResult{Error=failure};
-            if(IsNetworkError(failure)&&!(failure is AuthenticationException))
+            // The old DHCP address can now belong to another TLS device.
+            // Recovery verifies the original certificate, ID and token and
+            // only proposes an address; it never repeats the INSERT request.
+            if(IsNetworkError(failure)||failure is AuthenticationException)
             {
                 try{result.Recovery=await RecoverAsync(saved,token);}
                 catch(OperationCanceledException){throw;}

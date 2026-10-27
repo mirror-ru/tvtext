@@ -24,9 +24,12 @@ $run = Join-Path $PSScriptRoot ('build\release-' + [guid]::NewGuid().ToString('N
 $artifacts = Join-Path $run 'artifacts'
 New-Item -ItemType Directory -Path $run | Out-Null
 $tools = @{ Sdk = $Sdk; Jdk = $Jdk; Kotlin = $Kotlin }
-& (Join-Path $PSScriptRoot 'build.ps1') @tools -Target All -Output $artifacts
 $sourceHash = Get-SourceFingerprint
+& (Join-Path $PSScriptRoot 'build.ps1') @tools -Target All -Output $artifacts
+Assert-ReleaseSources $sourceHash
 $names = @(Get-ReleaseAssetNames $version)
+$null = Resolve-TestBuild (Join-Path $artifacts $names[0]) '' 'android-tv'
+$null = Resolve-TestBuild (Join-Path $artifacts $names[1]) '' 'android-mobile'
 $tv = Assert-ReleaseApk (Join-Path $artifacts $names[0]) 'com.tvtext.app' $version $jvm $android $certificate
 $mobile = Assert-ReleaseApk (Join-Path $artifacts $names[1]) 'com.tvtext.mobile.app' $version $jvm $android $certificate
 $exe = Get-Item -LiteralPath (Join-Path $artifacts $names[2])
@@ -39,7 +42,9 @@ if ($Tests -eq 'Full') {
 } else {
     & (Join-Path $PSScriptRoot 'test-mobile.ps1') @tools
 }
-if ((Get-SourceFingerprint) -cne $sourceHash) { throw 'Sources changed during verification. Start a new release preparation.' }
+Assert-ReleaseSources $sourceHash
+$null = Resolve-TestBuild (Join-Path $artifacts $names[0]) '' 'android-tv'
+$null = Resolve-TestBuild (Join-Path $artifacts $names[1]) '' 'android-mobile'
 # Publish the local candidate folder only after all requested checks pass.
 $clean = Join-Path $run 'release'
 New-Item -ItemType Directory -Path $clean | Out-Null

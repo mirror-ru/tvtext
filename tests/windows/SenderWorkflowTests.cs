@@ -30,10 +30,10 @@ internal static class SenderWorkflowTests
         Check(saved.Endpoint=="127.0.0.1:45831"&&writes==0,"recovery cannot mutate selection or persist before UI accepts it");
         failure=new AuthenticationException("Fixture changed certificate");
         sent=await workflow.SendAsync(saved,"private draft",CancellationToken.None);
-        Check(sent.Error==failure&&sent.Recovery==null&&scans==1,"certificate failure never searches or retries");
+        Check(sent.Error==failure&&sent.Recovery.Verified==relocated&&sends==3&&scans==2,"old-address certificate failure discovers the original TV without replay");
         failure=null;response=new Reply{Code=0,DeviceId=Guid.NewGuid().ToString(),Token=new string('c',64)};
         sent=await workflow.SendAsync(saved,"private draft",CancellationToken.None);
-        Check(sent.Error is AuthenticationException&&scans==1,"wrong receiver identity is rejected without recovery");
+        Check(sent.Error is AuthenticationException&&sends==4&&scans==3,"wrong receiver identity is rejected and recovery never repeats the text");
         saved.Name="Local name";
         var pair=await workflow.PairAsync(relocated,saved.Endpoint,saved.Fingerprint,"12345678",new[]{saved},CancellationToken.None);
         Check(pair.Connection==null&&pair.ErrorKey=="changed_id","pairing cannot overwrite another TV");
@@ -46,9 +46,17 @@ internal static class SenderWorkflowTests
         {
             cancellation.Cancel();bool cancelled=false;
             try{await workflow.SendAsync(saved,"cancelled",cancellation.Token);}catch(OperationCanceledException){cancelled=true;}
-            Check(cancelled&&sends==4&&scans==1,"cancelled work never reaches the sender or discovery");
+            Check(cancelled&&sends==4&&scans==3,"cancelled work never reaches the sender or discovery");
         }
         Console.WriteLine("PASS: independent Windows workflow: validated pairing, no replay, verified recovery proposals, pin/identity rejection, explicit save errors and cancellation");
+        int candidates=-1;
+        var filtering=new SenderWorkflow(null,null,
+            delegate(Connection connection,IEnumerable<DiscoveredTv> list,CancellationToken token){candidates=0;foreach(var tv in list)candidates++;return Task.FromResult<DiscoveredTv>(null);},null,null);
+        var unchanged=new DiscoveredTv{DeviceId=saved.DeviceId,Endpoint=saved.Endpoint};
+        await filtering.VerifyAsync(saved,new[]{unchanged},CancellationToken.None);
+        Check(candidates==0,"normal send verification excludes the unchanged address");
+        await filtering.VerifyAsync(saved,new[]{unchanged},CancellationToken.None,true);
+        Check(candidates==1,"blocked pairing refresh includes the unchanged address for authenticated recovery");
     }
     private static void Check(bool value,string message){if(!value)throw new Exception(message);}
 }

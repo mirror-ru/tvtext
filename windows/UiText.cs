@@ -10,6 +10,7 @@ namespace TvText
         private static readonly Dictionary<string,string> ru = new Dictionary<string,string>
         {
             {"app_title", "TVText"},
+            {"connection_changed", "Подключение изменено в другом окне. Перезапустите TVText."},
             {"version", "Версия {0}"},
             {"device_caption", "ТЕЛЕВИЗОРЫ"},
             {"device_list_accessible", "Список телевизоров"},
@@ -77,7 +78,7 @@ namespace TvText
             {"bad_character", "В тексте есть повреждённый символ. Вставьте текст заново."},
             {"send_no_confirmation", "Нет подтверждения. Проверьте текст на ТВ перед повтором."},
             {"tv_unavailable", "ТВ недоступен. Нажмите «Обновить» и проверьте приём на ТВ."},
-            {"endpoint_updated", "ТВ не ответил. Адрес обновлён. Повторите отправку."},
+            {"endpoint_updated", "Соединение с ТВ восстановлено. Проверьте текст на ТВ перед повтором."},
             {"pair_dialog_title", "Подключить телевизор"},
             {"pair_dialog_heading", "Подключим ваш ТВ"},
             {"pair_dialog_hint", "На телевизоре откройте TVText и выберите\nподключение нового устройства."},
@@ -102,6 +103,7 @@ namespace TvText
         private static readonly Dictionary<string,string> en = new Dictionary<string,string>
         {
             {"app_title", "TVText"},
+            {"connection_changed", "The connection changed in another window. Restart TVText."},
             {"version", "Version {0}"},
             {"device_caption", "TELEVISIONS"},
             {"device_list_accessible", "TV list"},
@@ -169,7 +171,7 @@ namespace TvText
             {"bad_character", "The text contains an invalid character. Paste it again."},
             {"send_no_confirmation", "No confirmation received. Check the TV text before trying again."},
             {"tv_unavailable", "The TV is unavailable. Click “Refresh” and check reception on the TV."},
-            {"endpoint_updated", "The TV did not respond. The address was updated. Try sending again."},
+            {"endpoint_updated", "TV connection restored. Check the TV text before trying again."},
             {"pair_dialog_title", "Connect TV"},
             {"pair_dialog_heading", "Connect your TV"},
             {"pair_dialog_hint", "Open TVText on your TV and choose\nnew device pairing."},

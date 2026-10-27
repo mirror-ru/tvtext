@@ -31,7 +31,9 @@ internal static class DiscoveryTests
         Connection saved=new Connection{DeviceId=FixtureId,Endpoint="127.0.0.1:1",Fingerprint=fingerprint,Token=token};
         DiscoveredTv tv=new DiscoveredTv{Name="Fixture",Endpoint=endpoint,DeviceId=FixtureId};
         Check(ConnectionResolver.FindVerifiedAsync(saved,new[]{tv}).GetAwaiter().GetResult()!=null,"changed IP resolves without pairing");
-        saved.Token="revoked-fixture-token";Check(ConnectionResolver.FindVerifiedAsync(saved,new[]{tv}).GetAwaiter().GetResult()!=null,"pinned TV can be relocated even after pairing key revocation");saved.Token=token;
+        saved.Endpoint=endpoint;
+        Check(ConnectionResolver.FindVerifiedAsync(saved,new[]{tv}).GetAwaiter().GetResult()!=null,"original TV can authenticate again at its saved address");
+        saved.Token="revoked-fixture-token";Check(ConnectionResolver.FindVerifiedAsync(saved,new[]{tv}).GetAwaiter().GetResult()==null,"a revoked key cannot restore a trusted connection");saved.Token=token;
         saved.Fingerprint=new string('0',64);Check(ConnectionResolver.FindVerifiedAsync(saved,new[]{tv}).GetAwaiter().GetResult()==null,"spoofed mDNS identity cannot change TLS pin");
         saved.Fingerprint=fingerprint;tv.DeviceId=Guid.NewGuid().ToString();Check(ConnectionResolver.FindVerifiedAsync(saved,new[]{tv}).GetAwaiter().GetResult()==null,"other TV ignored");
         Console.WriteLine("PASS: automatic endpoint recovery by stable ID, pinned certificate verification, other-TV isolation");

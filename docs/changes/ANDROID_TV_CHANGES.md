@@ -1,5 +1,9 @@
 # Android TV changes
 
+## 27 October 2026 — local version 2.0.10 rebuild
+
+- Updated the shared version to 2.0.10 / Android code 30. Receiver behavior is unchanged; the known Android 12 background clipboard limitation remains documented.
+
 ## 26 October 2026 — native Android 9 compatibility
 
 - The existing 2.0.9 receiver passed the complete TV suite on an isolated official AOSP API 28 emulator: `build/tv-ui-test-35b2796c838445bc8124f15e0f4c6e2f`, log `build/api28-compatibility.log`.

@@ -101,7 +101,7 @@ class MainActivity : Activity() {
         super.onStart()
         scanAtStop = false
         if(!startupChecked) { startupChecked = true; if(!catalog.hasPairings()) scan() }
-        else if(resumeScanAfterRecreate) { resumeScanAfterRecreate = false; controller.scan(preserveExisting = true) }
+        else if(resumeScanAfterRecreate) { resumeScanAfterRecreate = false; controller.scan(preserveExisting = true, revalidateId = invalidSelection()) }
     }
     override fun onStop() {
         scanAtStop = scanning
@@ -346,7 +346,8 @@ class MainActivity : Activity() {
             }
         } else { refreshAnimation?.cancel();refreshAnimation=null;(refresh as Artwork).glyphRotation=0f }
     }
-    private fun scan(completion: (() -> Unit)? = null) = controller.scan(completion = completion)
+    private fun invalidSelection() = selectedId.takeIf { it in catalog.invalidIds() }
+    private fun scan(completion: (() -> Unit)? = null) = controller.scan(revalidateId = invalidSelection(), completion = completion)
     private fun pair(tv: Tv) {
         dialogs.pair { pin -> controller.probe(tv) { fingerprint ->
             dialogs.fingerprint(fingerprint, {

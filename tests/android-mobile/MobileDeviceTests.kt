@@ -281,6 +281,29 @@ class MobileDeviceTests : Instrumentation() {
                     waitUntil { controller().scanning==false }
                     check(field("refreshAnimation")==null&&view("refresh").isEnabled) { "Stopping discovery must release the animation and re-enable Refresh" }
                     ui { covering.finish() };waitForIdleSync();check(controller().scanning==false)
+                    // The saved address now belongs to another TV. Its response
+                    // cannot authenticate A, and recovery must find A with its
+                    // original certificate/key without delivering the draft.
+                    click("tv-${a.id}")
+                    ui {
+                        catalog.pair(a.copy(endpoint=b.endpoint))
+                        catalog.beginDiscovery();catalog.discover(a.copy(endpoint=b.endpoint,token="",fingerprint=""))
+                        render.invoke(activity)
+                    }
+                    draft("Черновик после смены адреса");click("send")
+                    waitUntil { !controller().busy&&!controller().scanning&&catalog.profile(a.id)?.endpoint?.port==a.endpoint.port }
+                    check(catalog.isPaired(catalog.choices().first { it.id==a.id })&&view("send").isEnabled)
+                    check(input().text.toString()=="Черновик после смены адреса"&&first.received.isEmpty()&&second.received.isEmpty()) {
+                        "Recovery must retain the draft and never insert it on either TV"
+                    }
+                    val recoveredAddress=catalog.profile(a.id)?.endpoint
+                    check(recoveredAddress==catalog.advertisement(a.id)?.endpoint&&recoveredAddress!=b.endpoint)
+                    check(store.load()[a.id]?.endpoint==recoveredAddress&&store.load()[a.id]?.token==a.token)
+                    ui { catalog.invalidate(a.id);render.invoke(activity) }
+                    check(!view("send").isEnabled)
+                    click("refresh")
+                    waitUntil { !controller().busy&&!controller().scanning&&catalog.isPaired(catalog.choices().first { it.id==a.id }) }
+                    check(view("send").isEnabled&&first.received.isEmpty()&&second.received.isEmpty()) { "Manual refresh restores only an authenticated pairing" }
                     val unicode="Привет с телефона 😀 中文\nВторая строка"
                     click("tv-${a.id}"); draft(unicode); click("send"); idle()
                     check(first.received==listOf(unicode)&&second.received.isEmpty()); check(input().text.isEmpty())

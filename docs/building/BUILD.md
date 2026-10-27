@@ -29,6 +29,8 @@ Mobile sources and their intermediate JAR are under `android-mobile/` and `build
 
 ## Local release preparation
 
+The source fingerprint is captured before building and checked after the build and after tests. Both modes, including `Core`, validate matching APK/JAR/source build records; retain intermediate JAR files until release preparation finishes. Source changes require a fresh build.
+
 Run `prepare-release.ps1 -Device emulator-5580 -Sdk '<SDK path>'` to build all three apps and validate their versions, SDK bounds, alignment and APK certificates, then run Windows/TLS and both Android UI suites. Full checks are the default and require an explicitly selected isolated emulator. `-Tests Core` explicitly omits Android UI checks and records this in the report; it still runs Windows/TLS and mobile JVM tests.
 
 The script creates a new candidate directory under `outputs/` only after the requested checks pass. Use `-Output` for another new path; existing directories are rejected. The directory contains the two APKs, EXE, EXE configuration, `SHA256SUMS.txt` and `release-report.json`. Local APK/JAR build records stay under `build/`. No keys, passwords, test APKs or machine-specific JAR paths enter the candidate folder. Nothing is uploaded or committed.
@@ -44,10 +46,10 @@ Fingerprint paths now use the same order under Windows PowerShell 5.1 and PowerS
 ```powershell
 .\test-mobile.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
-  -AppApk '.\dist\TVText-Mobile-2.0.9.apk'
+  -AppApk '.\dist\TVText-Mobile-2.0.10.apk'
 .\test-tv-ui.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
-  -AppApk '.\dist\TVText-TV-2.0.9.apk'
+  -AppApk '.\dist\TVText-TV-2.0.10.apk'
 ```
 
 The scripts find `app.jar` through this record. `-AppJar` can point to a moved copy, but its hash must match. They reject missing records, changed APK/JAR contents, a different target/version/toolchain, and application/build source changes before installing anything. Rebuild old APKs that have no record. Rebuild after source changes. Retain `build/run-*/` until the associated tests finish.

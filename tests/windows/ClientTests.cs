@@ -83,7 +83,8 @@ public static class ClientTests
             Connection secondConnection=new Connection { Endpoint="127.0.0.1:45833",DeviceId=other.DeviceId,Fingerprint=fingerprint,Token=other.Token,Name="Спальня" };
             RemovedSelectionChecks(firstConnection,secondConnection);
             UiConnectionChecks(firstConnection,secondConnection);
-            UiSwitch(firstConnection,secondConnection);
+            Connection.StoragePathOverride=Path.Combine(Path.GetDirectoryName(Path.GetFullPath(args[0])),"ui-switch-profiles.dat");
+            try{UiSwitch(firstConnection,secondConnection);}finally{Connection.StoragePathOverride=null;}
             Console.WriteLine("PASS: C# client → Kotlin TLS server: certificate pinning, pairing, auth, status, Unicode, duplicates, UTF-8 limit");
             return 0;
         }
@@ -176,10 +177,17 @@ public static class ClientTests
                     TvDeviceList picker=(TvDeviceList)form.Controls.Find("DeviceList",true)[0];TextBox input=(TextBox)form.Controls.Find("TextBuffer",true)[0];
                     MethodInfo key=typeof(Control).GetMethod("OnKeyDown",BindingFlags.Instance|BindingFlags.NonPublic);
                     DeviceListChecks(form,picker,key);
+                    // B moved while A was selected. Its saved address is stale,
+                    // but the last manual discovery already found the new one.
+                    string currentAddress=second.Endpoint;
+                    second.Endpoint="127.0.0.1:1";
+                    typeof(MainForm).GetField("discovered",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(form,
+                        new System.Collections.Generic.List<DiscoveredTv>{new DiscoveredTv{DeviceId=second.DeviceId,Name=second.Name,Endpoint=currentAddress}});
                     picker.SelectedIndex=1;input.Text="UI → спальня";
                     KeyEventArgs shift=new KeyEventArgs(Keys.Shift|Keys.Enter);key.Invoke(input,new object[]{shift});Check(!shift.SuppressKeyPress,"Shift+Enter must remain a newline");
                     KeyEventArgs enter=new KeyEventArgs(Keys.Enter);key.Invoke(input,new object[]{enter});Check(enter.SuppressKeyPress,"Enter must send without inserting a newline");await WaitForSendAsync(form);
                     Check(input.Text.Length==0,"successful Enter send must clear the input by default");
+                    Check(second.Endpoint==currentAddress&&Connection.Load().Endpoint==currentAddress,"first send to another saved TV verifies and remembers its already-discovered address");
                     picker.SelectedIndex=0;input.Text="UI → гостиная";((Button)form.Controls.Find("SendButton",true)[0]).PerformClick();await WaitForSendAsync(form);
                     Check(input.Text.Length==0,"successful button send must clear the input by default");
                     input.Text="UI → черновик";((Button)form.Controls.Find("SendButton",true)[0]).PerformClick();input.Text="Следующий текст";await WaitForSendAsync(form);

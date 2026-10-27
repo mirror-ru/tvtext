@@ -1,12 +1,12 @@
-# TVText 2.0.9 user guide
+# TVText 2.0.10 user guide
 
 TVText sends text from Windows or an Android phone/tablet to an open text field on Google TV. The TV keeps its current keyboard, including Gboard. Both devices must be on the same Wi-Fi network.
 
 ## Install
 
-- Install `TVText-TV-2.0.9.apk` on the TV.
-- Install `TVText-Mobile-2.0.9.apk` on an Android 9+ phone or tablet if you want to send from Android.
-- Keep `TVText-2.0.9.exe` and `TVText-2.0.9.exe.config` together on Windows. .NET Framework 4.8 is required; no administrator rights are needed.
+- Install `TVText-TV-2.0.10.apk` on the TV.
+- Install `TVText-Mobile-2.0.10.apk` on an Android 9+ phone or tablet if you want to send from Android.
+- Keep `TVText-2.0.10.exe` and `TVText-2.0.10.exe.config` together on Windows. .NET Framework 4.8 is required; no administrator rights are needed.
 
 ## First setup on the TV
 
@@ -16,7 +16,7 @@ TVText sends text from Windows or an Android phone/tablet to an open text field 
 
 ## Pair from Windows
 
-1. Start `TVText-2.0.9.exe` and select the discovered TV.
+1. Start `TVText-2.0.10.exe` and select the discovered TV.
 2. Click **Connect** and enter the eight-digit code shown on the TV.
 3. Compare all four groups of the certificate fingerprint with the TV and confirm the match.
 4. Open an app on the TV, focus its text field, and show the on-screen keyboard.
@@ -64,6 +64,6 @@ The TV application hands text to the active Android input field. A vendor applic
 
 ## Updates and privacy
 
-TVText-TV 2.0.9 can update 2.0.7 or 2.0.8 without clearing TV data. Since 2.0.6, the mobile package is `com.tvtext.mobile.app`; it is a new application compared with older mobile builds, while 2.0.9 can update an existing 2.0.6, 2.0.7 or 2.0.8 installation. Pairings and settings remain when the same application ID, signing key and application data are preserved. Versions 1.4–1.8 are compatible with the current TV protocol; versions 1.3 and earlier require a new pairing because of the TLS identity change.
+TVText-TV 2.0.10 can update 2.0.7 or 2.0.8 without clearing TV data. Since 2.0.6, the mobile package is `com.tvtext.mobile.app`; it is a new application compared with older mobile builds, while 2.0.10 can update an existing 2.0.6, 2.0.7 or 2.0.8 installation. Pairings and settings remain when the same application ID, signing key and application data are preserved. Versions 1.4–1.8 are compatible with the current TV protocol; versions 1.3 and earlier require a new pairing because of the TLS identity change.
 
 Text is sent directly over the local network with TLS certificate pinning. There is no cloud service, account, or send history. Windows credentials are protected with DPAPI; Android profiles use Android Keystore AES-GCM. TVText does not read or store the contents of the input field.

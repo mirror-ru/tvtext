@@ -1,5 +1,16 @@
 # Android phone/tablet changes
 
+## 27 October 2026 — local version 2.0.10 rebuild
+
+- Updated the shared version to 2.0.10 / Android code 30, including the current address recovery and deferred verification fixes. Functional results for those changes are recorded in the test report.
+
+## 27 October 2026 — recovery after address changes (local, unreleased)
+
+- If a recovery scan finishes while another TV is sending, retain its verification until the current operation completes. Cancelled scans, destruction and replaced profile credentials invalidate this deferred check; no draft is replayed.
+- A certificate/identity mismatch at a stale address now triggers a bounded discovery scan followed by a status request with the original saved certificate and token. Only successful verification restores the pairing and remembers the new address; the draft is never sent automatically.
+- Manual refresh can revalidate the selected blocked pairing if the TV was absent during the first recovery attempt. Recovery cancels an older scan, rejects stale/cancelled verification results and does not trust credentials from discovery.
+- Added controller scenarios covering address recovery, later manual recovery, untrusted certificates, revoked tokens, cancellation and destruction. Updated the RU/EN recovery message to ask users to check the TV before repeating a send.
+
 ## 26 October 2026 — review fixes (local, unreleased)
 
 - Preserve discovered TV advertisements and invalid-pairing state across activity recreation without saving credentials in the activity state. An interrupted scan resumes with its already discovered TVs; a fresh manual scan still clears stale results. Saved pairings continue to suppress unsolicited startup scans.

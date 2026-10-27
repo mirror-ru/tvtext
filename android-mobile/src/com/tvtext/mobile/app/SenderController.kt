@@ -39,6 +39,7 @@ class SenderController(
     var storageHealthy = true; private set
     private var operation: Operation? = null
     private var scanGeneration = 0
+    private var pendingVerification: (() -> Unit)? = null
 
     fun storageFailed() { storageHealthy = false }
     private fun message(key: String?, error: Boolean = false, target: String? = null, detail: String? = null) =
@@ -47,9 +48,10 @@ class SenderController(
         check(storageHealthy); action(); true
     } catch (_: Exception) { message("storage_error", true, target); false }
 
-    fun scan(preserveExisting: Boolean = false, completion: (() -> Unit)? = null) {
+    fun scan(preserveExisting: Boolean = false, revalidateId: String? = null, completion: (() -> Unit)? = null) {
         if (scanning || busy || destroyed) return
         val generation = ++scanGeneration
+        pendingVerification = null
         if (!preserveExisting) catalog.beginDiscovery()
         scanning = true; changed(true)
         discovery.start({ tv ->
@@ -62,11 +64,12 @@ class SenderController(
                     else message("search_failed", true, detail = discovery.lastError)
                 }
                 completion?.invoke()
+                if (revalidateId != null && generation == scanGeneration) verifyDiscovered(revalidateId, generation)
             }
         })
     }
     fun stopDiscovery() {
-        ++scanGeneration; discovery.stop(); scanning = false
+        ++scanGeneration; pendingVerification = null; discovery.stop(); scanning = false
         if (!destroyed) changed(false)
     }
     fun destroy() {
@@ -87,13 +90,48 @@ class SenderController(
             post {
                 if (!destroyed && operation === task) {
                     busy = false; sending = false; operation = null; changed(false)
-                    result.fold(done) { failed(it as? Exception ?: IOException(it)) }
+                    try { result.fold(done) { failed(it as? Exception ?: IOException(it)) } }
+                    finally { drainVerification() }
                 }
             }
         }
     }
     private fun exchange(tv: Tv, command: Int, operation: Operation, credential: String = tv.token, id: String = "", text: String = "") =
         transport.exchange(tv, command, credential, id, text, operation)
+    private fun drainVerification() {
+        if (busy || destroyed) return
+        val pending = pendingVerification
+        pendingVerification = null
+        pending?.invoke()
+    }
+    private fun verifyDiscovered(id: String, generation: Int) {
+        val saved = catalog.profile(id) ?: return
+        val advertised = catalog.advertisement(id) ?: return
+        val candidate = saved.copy(endpoint = advertised.endpoint)
+        fun current() = generation == scanGeneration && catalog.profile(id) == saved
+        // Use only the saved certificate/key. Discovery supplies an address,
+        // never credentials, and recovery sends STATUS without the draft.
+        val verify: () -> Unit = {
+            if (current()) work({ exchange(candidate, 2, it) }, { response ->
+                if (!current()) return@work
+                if (response.code == 0) {
+                    catalog.validate(id); changed(true)
+                    if (persist(id) { catalog.rememberEndpoint(candidate) }) message("address_updated", true, id)
+                } else if (response.code == 1) {
+                    catalog.invalidate(id); changed(true); reply(response.code, id)
+                }
+            }, { error -> if (current()) showError(error, id) })
+        }
+        // Retain this scan/profile snapshot while another TV is sending.
+        // A newer scan, cancellation or changed credentials invalidates it.
+        if (busy) pendingVerification = verify else verify()
+    }
+    private fun recover(tv: Tv) {
+        // A send can finish while a manual scan is still running. Start one
+        // bounded recovery scan with its own completion, cancelling the old one.
+        if (scanning) stopDiscovery()
+        scan(revalidateId = tv.id)
+    }
     private fun showError(error: Exception, target: String) = message(when (error) {
         is PinMismatch -> "need_pairing"; is InvalidReply -> "protocol_error"; is IllegalArgumentException -> "too_long"; else -> "offline"
     }, true, target)
@@ -129,14 +167,11 @@ class SenderController(
             reply(response.code, tv.id)
         }, { error ->
             when (error) {
-                is PinMismatch -> { catalog.invalidate(tv.id); changed(true); showError(error, tv.id) }
+                is PinMismatch -> { catalog.invalidate(tv.id); changed(true); showError(error, tv.id); recover(tv) }
                 is InvalidReply -> showError(error, tv.id)
                 else -> {
                     message("uncertain", true, tv.id)
-                    if (!scanning) scan {
-                        if (catalog.advertisement(tv.id)?.endpoint?.let { it != tv.endpoint } == true)
-                            message("address_updated", true, tv.id)
-                    }
+                    recover(tv)
                 }
             }
         })

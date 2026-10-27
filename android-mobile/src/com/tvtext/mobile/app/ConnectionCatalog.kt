@@ -24,6 +24,7 @@ class ConnectionCatalog(private val save: (Map<String, Tv>, Map<String, String>)
     fun beginDiscovery() { discovered.clear() }
     fun discover(tv: Tv) { discovered[tv.id] = tv.copy(token = "", fingerprint = "", alias = "") }
     fun invalidate(id: String) { invalidKeys.add(id) }
+    fun validate(id: String) { invalidKeys.remove(id) }
 
     fun pair(tv: Tv) {
         require(tv.paired)

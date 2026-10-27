@@ -51,9 +51,9 @@ Optional parameters are `-Jdk`, `-Kotlin`, `-Output`, and `-Target All|TV|Mobile
 
 The build creates:
 
-- `TVText-TV-2.0.9.apk` for the TV;
-- `TVText-Mobile-2.0.9.apk` for phones and tablets;
-- `TVText-2.0.9.exe` and `TVText-2.0.9.exe.config` for Windows.
+- `TVText-TV-2.0.10.apk` for the TV;
+- `TVText-Mobile-2.0.10.apk` for phones and tablets;
+- `TVText-2.0.10.exe` and `TVText-2.0.10.exe.config` for Windows.
 
 The first build creates an APK signing key in `.local/`. Keep `signing.p12` and its password outside source control and back them up privately. A fresh clone without that key creates a different signing identity, so an already installed APK must be removed before installing that independent build.
 
@@ -70,7 +70,7 @@ For the real Android UI/instrumentation suite, pass an explicitly named isolated
 ```powershell
 .\test-mobile.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
-  -AppApk '.\dist\TVText-Mobile-2.0.9.apk'
+  -AppApk '.\dist\TVText-Mobile-2.0.10.apk'
 ```
 
 Test sources are grouped by target: `tests/android-tv/` contains TV engine and accessibility-fixture checks, `tests/android-mobile/` contains phone/tablet checks, and `tests/windows/` contains Windows client and layout checks. The scripts use local TLS fixtures on `127.0.0.1`; they do not use saved TV credentials or an external network.
@@ -118,7 +118,7 @@ Project and user documentation: [Russian README](README.ru.md), [user guide](doc
 
 ## GitHub and releases
 
-Use this directory as the repository root. `.gitignore` excludes build output, emulator state, generated test results, signing material, and release binaries. Keep APK and EXE files in a GitHub Release rather than source commits. The Windows 2.0.9 release must keep `TVText-2.0.9.exe.config` beside the EXE. The source is released under the MIT License in `LICENSE`.
+Use this directory as the repository root. `.gitignore` excludes build output, emulator state, generated test results, signing material, and release binaries. Keep APK and EXE files in a GitHub Release rather than source commits. The Windows 2.0.10 release must keep `TVText-2.0.10.exe.config` beside the EXE. The source is released under the MIT License in `LICENSE`.
 
 ## Known limits
 

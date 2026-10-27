@@ -1,4 +1,10 @@
 # Local release validation. No uploads, credentials, or network requests.
+function Assert-ReleaseSources([string]$ExpectedHash) {
+    if ((Get-SourceFingerprint) -cne $ExpectedHash) {
+        throw 'Sources changed during build or verification. Start a new release preparation.'
+    }
+}
+
 function Get-ReleaseAssetNames($Version) {
     @("TVText-TV-$($Version.Name).apk", "TVText-Mobile-$($Version.Name).apk",
         "TVText-$($Version.Name).exe", "TVText-$($Version.Name).exe.config")

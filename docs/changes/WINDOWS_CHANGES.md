@@ -1,5 +1,22 @@
 # Windows EXE changes
 
+## 27 October 2026 — local version 2.0.10 rebuild
+
+- Updated the shared version to 2.0.10 / Windows 2.0.10.0, including the current address recovery and multi-window profile preservation fixes. Functional results for those changes are recorded in the test report.
+
+## 27 October 2026 — shared profile and release consistency (local, unreleased)
+
+- Selecting a TV now saves only the active ID from the latest on-disk profile list. It cannot overwrite another window's new certificate/key/address or resurrect a removed profile.
+- Loaded/saved connections retain an in-memory persistence snapshot. Subsequent writes reject changed or deleted on-disk profiles under the existing cross-process lock, preserving newer pairings and addresses. The stored format is unchanged; explicit new pairing can still replace credentials.
+- Release preparation captures its source fingerprint before building, rejects changes immediately after the build, and validates APK/JAR/source build records in both Core and Full modes before and after tests. Added storage-conflict and release-entry regressions.
+
+## 27 October 2026 — recovery after address changes (local, unreleased)
+
+- Manual refresh can authenticate a blocked pairing even when the original TV returns at its saved address. Normal send verification still skips unchanged addresses, so this adds no routine status polling.
+- Before sending to a saved TV, check any different address already found by discovery using the saved certificate, device ID and pairing token. This covers switching to a TV whose address changed while another TV was selected, without polling on selection or starting an extra scan for a normal send.
+- A certificate/identity mismatch at the old address now triggers bounded discovery and authenticated status verification. Successful recovery keeps the existing pairing and preserves the draft; it never repeats the text automatically. Manual refresh can also restore a pairing previously blocked by the wrong endpoint.
+- A revoked token no longer qualifies as successful connection recovery. Updated the recovery message to ask users to check the TV before retrying, and added workflow/TLS/UI regressions.
+
 ## 26 October 2026 — shared build verification (local, unreleased)
 
 - Source fingerprints now sort normalized relative paths with ordinal comparison, so identical sources produce the same fingerprint in Windows PowerShell 5.1 and PowerShell 7. This fixes APK/JAR verification across those hosts and applies to all application targets.

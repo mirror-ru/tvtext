@@ -234,7 +234,8 @@ namespace TvText
             connection = ConnectionCatalog.FindProfile(profiles, Selected);
             if (saveSelection && !preview && connection.Token.Length > 0)
             {
-                SaveConnection(connection);
+                try{connection.SaveSelection();}
+                catch{unsavedConnections.Add(connection.DeviceId);devices.Invalidate();}
             }
         }
         private bool SaveConnection(Connection saved)
@@ -361,10 +362,10 @@ namespace TvText
                 List<DiscoveredTv> list=await workflow.DiscoverAsync(5000,shutdown.Token);if(closing)return;discovered=list;suppressedDeviceId=String.Empty;
                 if(busy)return;
                 Connection saved=connection;CancellationToken token=selectionWork.Token;int peerRevision=selectionRevision;
-                DiscoveredTv relocated=saved.Token.Length>0&&ActiveSelection()?await workflow.VerifyAsync(saved,list,token):null;
+                DiscoveredTv relocated=saved.Token.Length>0&&ActiveSelection()?await workflow.VerifyAsync(saved,list,token,pairingRequired.Contains(saved.DeviceId)):null;
                 if(closing)return;
                 if(relocated!=null&&!busy&&peerRevision==selectionRevision&&ActiveSelection()&&Object.ReferenceEquals(saved,connection))
-                {ApplyEndpoint(saved,relocated.Endpoint);ClearStatus();}
+                {ApplyEndpoint(saved,relocated.Endpoint);pairingRequired.Remove(saved.DeviceId);ClearStatus();}
                 RebuildDevices(null);
                 if(Connection.LastReadError.Length==0&&!busy&&revision==selectionRevision)
                 {
@@ -414,6 +415,11 @@ namespace TvText
             Connection saved=connection;int revision=selectionRevision;busy=true;UpdateControls();
             try
             {
+                // A refresh may have found a new address while another TV was
+                // selected. Authenticate that candidate before the first send.
+                DiscoveredTv relocated=await workflow.VerifyAsync(saved,new List<DiscoveredTv>(discovered),shutdown.Token);
+                if(closing||revision!=selectionRevision||!Object.ReferenceEquals(saved,connection))return;
+                if(relocated!=null)ApplyEndpoint(saved,relocated.Endpoint);
                 SenderWorkflow.SendResult result=await workflow.SendAsync(saved,text,shutdown.Token);
                 if(closing||revision!=selectionRevision||!Object.ReferenceEquals(saved,connection))return;
                 if(result.Error==null)
@@ -425,7 +431,9 @@ namespace TvText
                 }
                 else
                 {
-                    if(result.Error is AuthenticationException&&pairingRequired.Add(saved.DeviceId))devices.Invalidate();
+                    if(result.Error is AuthenticationException&&result.Recovery!=null&&result.Recovery.Verified!=null)
+                        pairingRequired.Remove(saved.DeviceId);
+                    else if(result.Error is AuthenticationException&&pairingRequired.Add(saved.DeviceId))devices.Invalidate();
                     string message=ErrorText(result.Error,true);
                     if(result.Recovery!=null)
                     {

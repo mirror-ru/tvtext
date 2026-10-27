@@ -30,7 +30,7 @@
     <string name="disabled">Включите TVText в специальных возможностях телевизора.</string>
     <string name="uncertain">Нет подтверждения. Проверьте текст на ТВ перед повторной отправкой.</string>
     <string name="offline">Телевизор не ответил. Проверьте Wi-Fi и обновите список.</string>
-    <string name="address_updated">Адрес телевизора обновлён. Отправьте текст ещё раз.</string>
+    <string name="address_updated">Соединение с ТВ восстановлено. Проверьте текст на ТВ перед повторной отправкой.</string>
     <string name="too_long">Текст превышает 32 КБ в UTF-8. Сократите его.</string>
     <string name="protocol_error">Некорректный ответ телевизора. Обновите TVText на обоих устройствах.</string>
     <string name="rename_title">Имя телевизора</string>

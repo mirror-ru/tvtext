@@ -1,5 +1,32 @@
 # TVText test report
 
+## Local version 2.0.10 rebuild — 27 October 2026
+
+- All three applications were built under `outputs/TVText-2.0.10/`: both APKs use version 2.0.10 / code 30; Windows uses 2.0.10.0. The output contains only two APKs, the EXE and its configuration file.
+- Verified packages, minSdk 28 / targetSdk 34, APK alignment, the original signing certificate, matching APK/JAR/sources, the Windows version and hashes after copying. Local build records, SHA-256 checksums and `verification.json` are under `build/rebuild-2.0.10-3509e3ee9954447e9540b803f5941f32/`.
+- Functional and emulator suites were not repeated for the version change; the fix verification results are recorded below. Previous release assets remain intact; nothing was published to GitHub.
+
+## Profile preservation and release consistency — 27 October 2026
+
+- The core Windows/TV/TLS suite passed: `build/test-afe035c54f78455aa3716af581f5bdfb`, log `build/store-release-fixes-tests.log`.
+- Checks cover selecting a TV in an old window after a new pairing, rejection of stale writes over newer keys/addresses and prevention of deleted-profile resurrection through selection or endpoint persistence.
+- Tooling regressions exercise the actual `prepare-release.ps1 -Tests Core` entry point with isolated build fixtures: edits during the build are rejected before creating a candidate, and unchanged sources still require APK build records.
+- Android application code was not changed in this addition; mobile and emulator suites were not repeated. Existing release assets and Git refs are retained.
+
+## Additional recovery fixes — 27 October 2026
+
+- The mobile JVM/controller/TLS suite passed: `build/mobile-test-d18619f7effd4940b508ba4b1532168c`, log `build/recovery-edge-mobile.log`. It checks that finishing scan A while TV B is sending defers A verification until the sender is idle. Separate scenarios cover scan cancellation, credential replacement and controller destruction before deferred verification.
+- The core Windows/TV/TLS suite passed: `build/test-885b6757fb0d495690670af813151498`, log `build/recovery-edge-windows.log`. Checks cover authentication of the original TV at its saved address over real TLS, rejection of revoked tokens/untrusted certificates and exclusion of unchanged addresses during normal send verification.
+- Android instrumentation was not repeated for this addition; the API 31 result below applies to the preceding test build.
+- EXE and mobile APK builds with these additional fixes are under `build/recovery-edge-artifacts-8dfef2a46b1845329984216e1c89de33/`; existing release assets are retained.
+
+## Recovery after IP changes — 27 October 2026
+
+- The core Windows/TV/TLS suite passed: `build/test-3612268ccd2a4748b0ac2a6ad07b87e0`, log `build/review-fixes-20261027-windows.log`. A new UI scenario covers the first send to a second saved TV with a stale address when discovery already knows its new address. Additional checks cover certificate-error recovery without replaying text and rejection of a revoked token during recovery.
+- The mobile JVM/controller/TLS suite passed: `build/mobile-test-3188cfd422a649d084e254351007ebb6`, log `build/review-fixes-20261027-mobile.log`. Scenarios cover automatic and subsequent manual recovery of the original pairing, draft preservation, untrusted certificates, revoked tokens and cancelled/stale verification results.
+- The complete mobile suite passed on isolated Android 12 / API 31: `build/mobile-test-1b5ebf95cbad40069af2290f42fb99d6`, log `build/address-recovery-api31-final.log`. The new scenario uses two TLS receivers and real NSD: the stale address points to another TV, then automatic and manual refresh recovery restore the original pairing without inserting the draft. The first attempt hit an incorrect loopback-address expectation in the test (`build/address-recovery-api31.log`); it was corrected to check the actually discovered network address and rerun.
+- Test EXE and mobile APK builds are kept separately under `build/address-recovery-artifacts-d9edd8a60eef4e36ac4a61d4782c4953/`. The version remains 2.0.9; existing release assets were not overwritten. Earlier test entries refer to their recorded builds.
+
 ## Review fixes — 26 October 2026
 
 - Tested restoration of discovered TVs across activity recreation, resumption of interrupted scans, retries of busy NSD resolutions and cancellation. The test mobile build from current local sources passed the Android 9 suite: `build/mobile-test-2f8ad96b7bc14bd7b0b5501fde58b8dc`, log `build/review-fixes-api28-mobile3.log`; Android 14: `build/mobile-test-1f5bf0a7c86c41b290115f62e1aee0fb`, log `build/review-fixes-api34-mobile3.log`.

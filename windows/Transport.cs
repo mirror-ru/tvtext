@@ -175,6 +175,11 @@ namespace TvText
         private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("TVText.Local.v1");
         private static readonly object StoreLock = new object();
         private const string Format = "TVText-Profiles-2";
+        private Connection persisted;
+        private Connection Snapshot()
+        {return new Connection{Endpoint=Endpoint,Fingerprint=Fingerprint,Token=Token,DeviceId=DeviceId,Name=Name};}
+        private bool SameVersion(Connection other)
+        {return Endpoint==other.Endpoint&&Fingerprint==other.Fingerprint&&Token==other.Token&&DeviceId==other.DeviceId&&Name==other.Name;}
         public static Connection Load()
         {
             string active; List<Connection> all = ReadAll(out active);
@@ -199,6 +204,7 @@ namespace TvText
                         if(reader.BaseStream.Position < reader.BaseStream.Length) { legacy.DeviceId = reader.ReadString(); legacy.Name = reader.ReadString(); }
                         if(reader.BaseStream.Position!=reader.BaseStream.Length)throw new IOException("Invalid legacy profile");
                         Validate(legacy);
+                        legacy.persisted=legacy.Snapshot();
                         active = legacy.DeviceId; return new List<Connection> { legacy };
                     }
                     active = reader.ReadString(); int size = reader.ReadInt32();
@@ -210,6 +216,7 @@ namespace TvText
                         Connection item=new Connection { Endpoint = reader.ReadString(), Fingerprint = reader.ReadString(), Token = reader.ReadString(), DeviceId = reader.ReadString(), Name = reader.ReadString() };
                         if(!ids.Add(item.DeviceId))throw new IOException("Duplicate profile");
                         Validate(item);
+                        item.persisted=item.Snapshot();
                         result.Add(item);
                     }
                     if(reader.BaseStream.Position!=reader.BaseStream.Length)throw new IOException("Trailing profile data");
@@ -231,9 +238,24 @@ namespace TvText
             {
                 string active; List<Connection> all = ReadAll(out active,true);
                 int index=all.FindIndex(delegate(Connection item){return item.DeviceId==DeviceId||item.DeviceId.Length==0&&item.Endpoint==Endpoint;});
+                if(persisted!=null&&(index<0||!all[index].SameVersion(persisted)))
+                    throw new IOException(UiText.T("connection_changed"));
                 if(index>=0)all[index]=this;
                 else {if(all.Count>=100)throw new IOException(UiText.T("transport_too_many"));all.Add(this);}
                 WriteAll(all, DeviceId);
+                persisted=Snapshot();
+            });
+        }
+        internal void SaveSelection()
+        {
+            ChangeStore(delegate
+            {
+                string active;var all=ReadAll(out active,true);
+                if(!all.Exists(delegate(Connection item){return item.DeviceId==DeviceId;}))
+                    throw new IOException(UiText.T("connection_changed"));
+                // Read-modify-write the active ID only; the stored profile may
+                // already have newer credentials or an address from another window.
+                if(active!=DeviceId)WriteAll(all,DeviceId);
             });
         }
         private static void Validate(Connection item)
@@ -302,12 +324,12 @@ namespace TvText
             budget.CancelAfter(8000);
             foreach(DiscoveredTv tv in candidates)
             {
-                if(saved.DeviceId.Length == 0 || tv.DeviceId != saved.DeviceId || tv.Endpoint == saved.Endpoint) continue;
+                if(saved.DeviceId.Length == 0 || tv.DeviceId != saved.DeviceId) continue;
                 try
                 {
                     budget.Token.ThrowIfCancellationRequested();
                     Reply reply = await Task.Run(delegate { return Client.Exchange(tv.Endpoint, saved.Fingerprint, 2, saved.Token, "", "",budget.Token); });
-                    if((reply.Code == 0 || reply.Code == 1) && reply.DeviceId == saved.DeviceId) return tv;
+                    if(reply.Code == 0 && reply.DeviceId == saved.DeviceId) return tv;
                 }
                 catch(OperationCanceledException){cancellationToken.ThrowIfCancellationRequested();return null;}
                 catch { }
