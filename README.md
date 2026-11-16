@@ -14,18 +14,10 @@ TVText sends text from a Windows PC or an Android phone/tablet to the active tex
 
 The TV and mobile APKs use Kotlin and framework Views; the Windows application uses C#. The Android packages have different application IDs and can be installed together.
 
-## Screenshots
+## Overview
 
 <p align="center">
-  <img src="docs/images/en/windows-main.png" alt="TVText for Windows" width="696">
-</p>
-
-<p align="center">
-  <img src="docs/images/en/mobile-main.png" alt="TVText for Android" width="320">
-</p>
-
-<p align="center">
-  <img src="docs/images/en/tv-main.png" alt="TVText on Google TV" width="700">
+  <img src="docs/images/en/overview.png" alt="TVText on Windows, Android and Google TV" width="900">
 </p>
 
 ## Requirements

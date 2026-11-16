@@ -14,18 +14,10 @@ TVText передаёт текст с Windows-ПК или телефона/пл�
 
 Приложения для ТВ и мобильных устройств написаны на Kotlin и используют системные Views. Windows-приложение написано на C#. У Android-приложений разные идентификаторы, поэтому их можно устанавливать одновременно.
 
-## Скриншоты
+## Обзор
 
 <p align="center">
-  <img src="docs/images/ru/windows-main.png" alt="TVText для Windows" width="696">
-</p>
-
-<p align="center">
-  <img src="docs/images/ru/mobile-main.png" alt="TVText для Android" width="320">
-</p>
-
-<p align="center">
-  <img src="docs/images/ru/tv-main.png" alt="TVText на Google TV" width="700">
+  <img src="docs/images/ru/overview.png" alt="TVText на Windows, Android и Google TV" width="900">
 </p>
 
 ## Требования
