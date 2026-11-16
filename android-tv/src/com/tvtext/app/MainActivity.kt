@@ -6,13 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.content.res.Configuration
-import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.ColorFilter
-import android.graphics.Paint
-import android.graphics.PixelFormat
 import android.graphics.Typeface
-import android.graphics.drawable.Drawable
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
@@ -288,45 +283,6 @@ class MainActivity : Activity() {
         setPadding(dp(26), dp(22), dp(26), dp(22))
     }
     private fun button(value: String, primary: Boolean = false, action: () -> Unit) = widgets.button(value,primary,action)
-    /** Small outlined count badge shown at the end of the connected-devices button. */
-    private inner class ConnectionCountBadge(private val count: Int) : Drawable() {
-        private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
-        private val number = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        }
-
-        override fun draw(canvas: Canvas) {
-            val bounds = bounds
-            val radius = minOf(bounds.width(), bounds.height()) / 2f - dp(2)
-            val cx = bounds.exactCenterX()
-            val cy = bounds.exactCenterY()
-            ring.color = accent
-            ring.strokeWidth = dp(1).toFloat()
-            canvas.drawCircle(cx, cy, radius, ring)
-            number.color = accent
-            number.textSize = dp(12).toFloat()
-            val value = if (count > 99) "99+" else count.toString()
-            val metrics = number.fontMetrics
-            canvas.drawText(value, cx, cy - (metrics.ascent + metrics.descent) / 2f, number)
-        }
-
-        override fun getIntrinsicWidth() = dp(28)
-        override fun getIntrinsicHeight() = dp(28)
-        override fun setAlpha(alpha: Int) {
-            ring.alpha = alpha
-            number.alpha = alpha
-            invalidateSelf()
-        }
-        override fun setColorFilter(colorFilter: ColorFilter?) {
-            ring.colorFilter = colorFilter
-            number.colorFilter = colorFilter
-            invalidateSelf()
-        }
-        @Deprecated("Deprecated in Android Drawable API", level = DeprecationLevel.WARNING)
-        override fun getOpacity() = PixelFormat.TRANSLUCENT
-    }
     private fun toast(message: String) { Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
     private fun View.showIf(value: Boolean) {
@@ -395,7 +351,7 @@ class MainActivity : Activity() {
             connectionBadgeCount = -1
         } else if (connectionBadgeCount != connectionCount) {
             computersButton.setCompoundDrawablePadding(dp(8))
-            computersButton.setCompoundDrawablesWithIntrinsicBounds(null, null, ConnectionCountBadge(connectionCount), null)
+            computersButton.setCompoundDrawablesWithIntrinsicBounds(null, null, ConnectionCountBadge(this,connectionCount,accent), null)
             computersButton.contentDescription = tr("connected_pcs") + ": " + connectionCount
             connectionBadgeCount = connectionCount
         }
