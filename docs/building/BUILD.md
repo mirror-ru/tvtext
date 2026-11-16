@@ -25,7 +25,9 @@ The default JDK and Kotlin paths point to Android Studio. The Android SDK defaul
 
 Output defaults to `dist/`; override it with `-Output`. Each build uses its own `build/run-*/` directory. Release uploads contain the two APKs and the EXE with its `.exe.config` sidecar.
 
-Mobile sources and their intermediate JAR are under `android-mobile/` and `build/run-*/android-mobile/app.jar`. Mobile test sources are in `tests/android-mobile/`. The Android application ID is still `com.tvtext.mobile.app`.
+Android builds keep a local content-addressed Kotlin compile cache in `build/cache/`. A cache hit skips only Kotlin compilation and JAR creation; R8, Android resource linking, alignment, signing, verification, and build-record generation still run. Source, compiler, JDK, Kotlin libraries, Android platform, and compile-option changes invalidate the cache. Delete `build/cache/` to force a cold compile.
+
+Mobile sources and their intermediate JAR are under `android-mobile/` and `build/run-*/android-mobile/app.jar`. Mobile tests are organized under `tests/android-mobile/{core,instrumentation,fixtures}/`; see [the test map](../../tests/README.md). The Android application ID is still `com.tvtext.mobile.app`.
 
 ## Local release preparation
 

@@ -56,10 +56,23 @@ function Build-Apk([string]$SourceName, [string]$ApkName) {
     New-Item -ItemType Directory -Force -Path $classes, $dex, $generated | Out-Null
     $sources = @(Get-ChildItem -LiteralPath (Join-Path $sourceRoot 'src') -Recurse -Filter '*.kt' |
         Sort-Object FullName | ForEach-Object FullName)
-    Invoke-Checked $java (@('-cp', (Join-Path $Kotlin 'lib\*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
-        '-no-reflect', '-no-stdlib', '-jvm-target', '1.8', '-classpath', "$androidJar;$stdlib", '-d', $classes) + $sources)
     $appJar = Join-Path $appBuild 'app.jar'
-    Invoke-Checked $jar @("-J-Djava.io.tmpdir=$appBuild", 'cf', $appJar, '-C', $classes, '.')
+    $cacheDirectory = Join-Path $PSScriptRoot 'build\cache'
+    $compileInputs = @($sources) + @((Join-Path $sourceRoot 'r8-rules.pro'), (Join-Path $PSScriptRoot 'build.ps1'),
+        (Join-Path $PSScriptRoot 'scripts\Common.ps1'), (Join-Path $Kotlin 'build.txt'), $androidJar, $stdlib, $annotations) +
+        @(Get-ChildItem -LiteralPath (Join-Path $Kotlin 'lib') -Filter '*.jar' -File | ForEach-Object FullName)
+    $cacheKey = Get-AndroidCompileCacheKey $SourceName $compileInputs
+    $cachedJar = Get-ValidAndroidCompileCache $cacheDirectory $SourceName $cacheKey
+    if ($cachedJar) {
+        Copy-Item -LiteralPath $cachedJar -Destination $appJar
+        Write-Output "Kotlin compile cache hit: $SourceName"
+    } else {
+        Invoke-Checked $java (@('-cp', (Join-Path $Kotlin 'lib\*'), 'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler',
+            '-no-reflect', '-no-stdlib', '-jvm-target', '1.8', '-classpath', "$androidJar;$stdlib", '-d', $classes) + $sources)
+        Invoke-Checked $jar @("-J-Djava.io.tmpdir=$appBuild", 'cf', $appJar, '-C', $classes, '.')
+        Save-AndroidCompileCache $cacheDirectory $SourceName $cacheKey $appJar
+        Write-Output "Kotlin compile cache miss: $SourceName"
+    }
     Invoke-Checked $java @('-cp', (Join-Path $toolPath 'lib\d8.jar'), 'com.android.tools.r8.R8',
         '--release', '--min-api', '28', '--lib', $androidJar,
         '--pg-conf', (Join-Path $sourceRoot 'r8-rules.pro'), '--output', $dex, $appJar, $stdlib, $annotations)

@@ -126,6 +126,49 @@ function Get-SourceFingerprint {
     finally { $sha.Dispose() }
 }
 
+function Get-AndroidCompileCacheKey([string]$Target, [string[]]$Inputs) {
+    if ($Target -notin @('android-tv', 'android-mobile')) { throw 'Unsupported Android compile cache target.' }
+    [string[]]$paths = @($Inputs | ForEach-Object { (Resolve-Path -LiteralPath $_).Path })
+    [Array]::Sort($paths, [StringComparer]::Ordinal)
+    $lines = @('TVText-Kotlin-compile-cache-v1', $Target, '-jvm-target=1.8') + @(
+        foreach ($path in $paths) {
+            $path + ':' + (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+        }
+    )
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes(($lines -join "`n")))).Replace('-', '')) }
+    finally { $sha.Dispose() }
+}
+
+function Get-ValidAndroidCompileCache([string]$CacheDirectory, [string]$Target, [string]$Key) {
+    $jar = Join-Path $CacheDirectory "$Target-$Key.jar"
+    $metadata = Join-Path $CacheDirectory "$Target-$Key.json"
+    if (!(Test-Path -LiteralPath $jar -PathType Leaf) -or !(Test-Path -LiteralPath $metadata -PathType Leaf)) { return $null }
+    try {
+        $record = Get-Content -LiteralPath $metadata -Raw | ConvertFrom-Json
+        if ($record.schema -ne 1 -or $record.target -cne $Target -or $record.key -cne $Key -or
+            $record.jarSha256 -cne (Get-FileHash -LiteralPath $jar -Algorithm SHA256).Hash) { return $null }
+        (Resolve-Path -LiteralPath $jar).Path
+    } catch { $null }
+}
+
+function Save-AndroidCompileCache([string]$CacheDirectory, [string]$Target, [string]$Key, [string]$AppJar) {
+    New-Item -ItemType Directory -Force -Path $CacheDirectory | Out-Null
+    $jar = Join-Path $CacheDirectory "$Target-$Key.jar"
+    $metadata = Join-Path $CacheDirectory "$Target-$Key.json"
+    $temporaryJar = "$jar.$([guid]::NewGuid().ToString('N')).tmp"
+    $temporaryMetadata = "$metadata.$([guid]::NewGuid().ToString('N')).tmp"
+    try {
+        Copy-Item -LiteralPath $AppJar -Destination $temporaryJar
+        $record = [ordered]@{ schema = 1; target = $Target; key = $Key; jarSha256 = (Get-FileHash -LiteralPath $temporaryJar -Algorithm SHA256).Hash }
+        [IO.File]::WriteAllText($temporaryMetadata, ($record | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
+        Move-Item -LiteralPath $temporaryJar -Destination $jar -Force
+        Move-Item -LiteralPath $temporaryMetadata -Destination $metadata -Force
+    } finally {
+        Remove-Item -LiteralPath $temporaryJar, $temporaryMetadata -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Write-ApkBuildRecord([string]$Apk, [string]$AppJar, [string]$Target, $Version, [string]$SourceHash) {
     $pins = Read-Toolchain
     $record = [ordered]@{

@@ -37,6 +37,23 @@ foreach ($badVersion in @('{"name":"2.3","androidCode":28}', '{"name":"2.3.4","a
 }
 Assert-Rejected { Assert-ToolVersion 'Kotlin' 'different' 'pinned' } 'version mismatch'
 
+# The compile cache key is content-based and the cache refuses tampered jars.
+$cacheInputs = Join-Path $run 'cache-input.txt'
+Write-Fixture $cacheInputs 'source one'
+$cacheKey = Get-AndroidCompileCacheKey 'android-mobile' @($cacheInputs)
+$originalCacheKey = $cacheKey
+Assert-True ($cacheKey -ceq (Get-AndroidCompileCacheKey 'android-mobile' @($cacheInputs))) 'Compile cache key is not stable.'
+$cacheJar = Join-Path $run 'cache-fixture.jar'
+Write-Fixture $cacheJar 'compiled classes'
+$cacheDirectory = Join-Path $run 'cache'
+Save-AndroidCompileCache $cacheDirectory 'android-mobile' $cacheKey $cacheJar
+$cached = Get-ValidAndroidCompileCache $cacheDirectory 'android-mobile' $cacheKey
+Assert-True ($cached -and (Get-Content -LiteralPath $cached -Raw) -eq 'compiled classes') 'Valid compile cache entry was not reused.'
+Write-Fixture $cacheInputs 'source two'
+Assert-True ($cacheKey -cne (Get-AndroidCompileCacheKey 'android-mobile' @($cacheInputs))) 'Source edit did not invalidate compile cache key.'
+Write-Fixture $cached 'tampered cache'
+Assert-True ((Get-ValidAndroidCompileCache $cacheDirectory 'android-mobile' $originalCacheKey) -eq $null) 'Tampered compile cache jar was accepted.'
+
 # Build records must remain valid when build and test use different PowerShell hosts.
 $alternateHost = if ($PSVersionTable.PSVersion.Major -ge 6) {
     Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe'
