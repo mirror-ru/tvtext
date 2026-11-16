@@ -73,6 +73,9 @@ public static class ClientTests
             Check(Client.Exchange(endpoint, fingerprint, 3, pair.Token, id, text).Code == 0, "unicode insert");
             Check(Client.Exchange(endpoint, fingerprint, 3, pair.Token, id, text).Code == 0, "deduplication");
             Check(Client.Exchange(endpoint, fingerprint, 3, pair.Token, Guid.NewGuid().ToString(), "C# → Kotlin: Привет 😀 & % + \" \\ \n第二行").Code == 0, "second insert");
+            string exactLimit=new string('\u4e2d',Client.MaxText/3)+"é";
+            Check(Encoding.UTF8.GetByteCount(exactLimit)==Client.MaxText,"UTF-8 boundary fixture is exact");
+            Check(Client.Exchange(endpoint,fingerprint,3,pair.Token,Guid.NewGuid().ToString(),exactLimit).Code==0,"exact UTF-8 limit crosses Windows-to-TV TLS intact");
             bool oversized = false;
             try { Client.Exchange(endpoint, fingerprint, 3, pair.Token, Guid.NewGuid().ToString(), new string('Ж', 20000)); }
             catch (ArgumentException) { oversized = true; }

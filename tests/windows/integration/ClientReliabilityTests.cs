@@ -72,6 +72,16 @@ internal static class ClientReliabilityTests
     {byte[] bytes=new byte[body.Length+4];int n=body.Length;bytes[0]=(byte)(n>>24);bytes[1]=(byte)(n>>16);bytes[2]=(byte)(n>>8);bytes[3]=(byte)n;Buffer.BlockCopy(body,0,bytes,4,n);return bytes;}
     private static void Frames()
     {
+        string exactLimit=new string('\u4e2d',Client.MaxText/3)+"é";
+        Check(Encoding.UTF8.GetByteCount(exactLimit)==Client.MaxText,"UTF-8 boundary fixture is exact");
+        byte[] maximumRequest=Client.EncodeRequest(3,new string('c',256),new string('i',128),exactLimit);
+        Check(maximumRequest.Length<=65540,"exact request and field limits are encoded");
+        bool rejectedLimit=false;try{Client.EncodeRequest(3,"c","",exactLimit+"x");}catch(ArgumentException){rejectedLimit=true;}
+        Check(rejectedLimit,"request over the UTF-8 byte limit is rejected before network activity");
+        bool rejectedCredential=false;try{Client.EncodeRequest(3,new string('c',257),"","");}catch(ArgumentException){rejectedCredential=true;}
+        Check(rejectedCredential,"credential byte limit is enforced by the request encoder");
+        bool rejectedId=false;try{Client.EncodeRequest(3,"c",new string('i',129),"");}catch(ArgumentException){rejectedId=true;}
+        Check(rejectedId,"request ID byte limit is enforced by the request encoder");
         byte[] body=new byte[19];body[0]=1; // version, result, ready, four empty strings
         Check(Client.ReadReply(new MemoryStream(Frame(body))).Code==0,"valid empty reply");
         foreach(int field in new[]{0,1,2})

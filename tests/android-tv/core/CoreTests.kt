@@ -89,10 +89,25 @@ object CoreTests {
         bytes.reset(); Protocol.writeResponse(bytes, response)
         check(Protocol.readResponse(ByteArrayInputStream(bytes.toByteArray())) == response)
         fun rejects(body: () -> Unit) { check(runCatching(body).isFailure) }
+        val exactLimit = "中".repeat(Protocol.MAX_TEXT / 3) + "é"
+        check(exactLimit.toByteArray(Charsets.UTF_8).size == Protocol.MAX_TEXT)
+        val maximumRequest = Protocol.Request(Protocol.INSERT, "c".repeat(256), "i".repeat(128), exactLimit)
+        bytes.reset(); Protocol.writeRequest(bytes, maximumRequest)
+        check(Protocol.readRequest(ByteArrayInputStream(bytes.toByteArray())) == maximumRequest) { "exact UTF-8 payload and field limits are accepted" }
+        rejects { Protocol.writeRequest(ByteArrayOutputStream(), maximumRequest.copy(text = exactLimit + "x")) }
+        rejects { Protocol.writeRequest(ByteArrayOutputStream(), maximumRequest.copy(credential = "c".repeat(257))) }
+        rejects { Protocol.writeRequest(ByteArrayOutputStream(), maximumRequest.copy(id = "i".repeat(129))) }
         rejects { Protocol.readRequest(ByteArrayInputStream(byteArrayOf(0,1,0,1))) }
         rejects { Protocol.readRequest(ByteArrayInputStream(byteArrayOf(0,0,0,2,1))) }
         rejects { Protocol.readRequest(ByteArrayInputStream(byteArrayOf(0,0,0,6,1,3,-1,-1,-1,-1))) }
-        rejects { Protocol.readRequest(ByteArrayInputStream(bytes.toByteArray())) }
+        rejects { Protocol.readResponse(ByteArrayInputStream(bytes.toByteArray())) }
+        val malformedUtf8 = ByteArrayOutputStream().also { raw ->
+            val body = ByteArrayOutputStream().also { payload ->
+                DataOutputStream(payload).apply { writeByte(1);writeByte(Protocol.INSERT);writeInt(0);writeInt(0);writeInt(1);writeByte(0xff) }
+            }.toByteArray()
+            DataOutputStream(raw).apply { writeInt(body.size);write(body) }
+        }.toByteArray()
+        rejects { Protocol.readRequest(ByteArrayInputStream(malformedUtf8)) }
         println("PASS: pairing expiry, 10-attempt lockout, token rotation/revocation, pause, Unicode, deduplication, no deferred insertion, size limits, framing")
         ReliabilityTests.authorization()
 
@@ -130,7 +145,8 @@ object CoreTests {
             val deadline = System.currentTimeMillis() + 90000
             while (!finish.exists() && System.currentTimeMillis() < deadline) Thread.sleep(100)
             server.close(); secondServer.close()
-            check(inserted.size == 5 && inserted[1] == text && inserted[2] == "C# → Kotlin: Привет 😀 & % + \" \\ \n第二行" && inserted[3] == "UI → гостиная" && inserted[4] == "UI → черновик")
+            val exactLimit = "中".repeat(Protocol.MAX_TEXT / 3) + "é"
+            check(inserted.size == 6 && inserted[1] == text && inserted[2] == "C# → Kotlin: Привет 😀 & % + \" \\ \n第二行" && inserted[3] == exactLimit && inserted[4] == "UI → гостиная" && inserted[5] == "UI → черновик")
             check(secondText == listOf("UI → спальня"))
             println("PASS: two independent TVs received only their selected UI messages, without broadcast or replay")
         }

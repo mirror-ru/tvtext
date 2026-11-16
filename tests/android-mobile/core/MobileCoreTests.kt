@@ -26,6 +26,15 @@ object MobileCoreTests {
         fun rejects(block:()->Unit) { check(runCatching(block).isFailure) }
         rejects { Wire.request(3,"a","b","Ж".repeat(16385)) }
         rejects { Wire.request(3,"a","b","\ud800") }
+        val exactLimit = "中".repeat(Wire.MAX_TEXT / 3) + "é"
+        check(Wire.utf8(exactLimit).size == Wire.MAX_TEXT)
+        val maximumRequest = Wire.request(3,"c".repeat(256),"i".repeat(128),exactLimit)
+        check(Protocol.readRequest(ByteArrayInputStream(maximumRequest)) == Protocol.Request(3,"c".repeat(256),"i".repeat(128),exactLimit))
+        rejects { Wire.request(3,"c","",exactLimit+"x") }
+        rejects { Wire.request(3,"c".repeat(257),"","") }
+        rejects { Wire.request(3,"c","i".repeat(129),"") }
+        val malformedRequest=maximumRequest.clone().also { it[it.lastIndex]=0xff.toByte() }
+        rejects { Protocol.readRequest(ByteArrayInputStream(malformedRequest)) }
         rejects { Wire.reply(ByteArrayInputStream(byteArrayOf(0,1,0,1))) }
         val invalid=response.toByteArray().also { it[6]=2 }; rejects { Wire.reply(ByteArrayInputStream(invalid)) }
         rejects { Endpoint("example.org") }; rejects { Endpoint("127.0.0.1",0) }
@@ -46,11 +55,14 @@ object MobileCoreTests {
                 check(SenderClient.exchange(a,3,id=id,text=sample).code==0)
                 check(SenderClient.exchange(b,3,id=UUID.randomUUID().toString(),text="second").code==0)
                 check(first.received==listOf(sample) && second.received==listOf("second"))
+                val exactLimit="中".repeat(Wire.MAX_TEXT/3)+"é"
+                check(SenderClient.exchange(a,3,id=UUID.randomUUID().toString(),text=exactLimit).code==0)
+                check(first.received==listOf(sample,exactLimit)) { "exact UTF-8 text limit reaches the TV without truncation" }
                 rejects { SenderClient.exchange(a.copy(fingerprint="0".repeat(64)),3,id=UUID.randomUUID().toString(),text="never delivered") }
-                check(first.received==listOf(sample))
+                check(first.received==listOf(sample,exactLimit))
                 rejects { SenderClient.exchange(a.copy(id=UUID.randomUUID().toString()),2) }
                 first.ready=false; check(SenderClient.exchange(a,3,id=UUID.randomUUID().toString(),text="no replay").code==4)
-                first.ready=true; check(first.received==listOf(sample))
+                first.ready=true; check(first.received==listOf(sample,exactLimit))
                 check(SenderClient.exchange(a,4).code==0 && SenderClient.exchange(a,2).code==1)
                 check(SenderClient.exchange(b,2).code==0)
             }

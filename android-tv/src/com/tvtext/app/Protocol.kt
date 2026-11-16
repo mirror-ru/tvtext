@@ -2,6 +2,8 @@ package com.tvtext.app
 
 import java.io.*
 import java.nio.ByteBuffer
+import java.nio.CharBuffer
+import java.nio.charset.CodingErrorAction
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -41,10 +43,14 @@ object Protocol {
         return request
     }
     fun writeRequest(stream: OutputStream, r: Request) = writeFrame(stream) { output ->
+        require(r.command in PAIR..REVOKE) { "command" }
+        require(utf8(r.credential).size <= 256 && utf8(r.id).size <= 128 && utf8(r.text).size <= MAX_TEXT) { "request field size" }
         output.writeByte(1); output.writeByte(r.command)
         writeString(output, r.credential); writeString(output, r.id); writeString(output, r.text)
     }
     fun writeResponse(stream: OutputStream, r: Response) = writeFrame(stream) { output ->
+        require(r.code in OK..BAD_REQUEST || r.code == UNCERTAIN) { "response code" }
+        require(utf8(r.message).size <= 4096 && utf8(r.token).size <= 256 && utf8(r.target).size <= 1024 && utf8(r.deviceId).size <= 128) { "response field size" }
         output.writeByte(1); output.writeByte(r.code); output.writeBoolean(r.ready)
         writeString(output, r.message); writeString(output, r.token); writeString(output, r.target); writeString(output, r.deviceId)
     }
@@ -77,9 +83,12 @@ object Protocol {
         return Charsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString()
     }
     private fun writeString(output: DataOutputStream, text: String) {
-        val bytes = text.toByteArray(Charsets.UTF_8)
+        val bytes = utf8(text)
         output.writeInt(bytes.size); output.write(bytes)
     }
+    private fun utf8(text: String): ByteArray = Charsets.UTF_8.newEncoder()
+        .onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)
+        .encode(CharBuffer.wrap(text)).let { buffer -> ByteArray(buffer.remaining()).also { buffer.get(it) } }
 }
 
 class BridgeEngine(private val store: Store, private val target: Target, private val clock: () -> Long, private val deviceId: String = "") {

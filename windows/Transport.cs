@@ -123,8 +123,7 @@ namespace TvText
         public static Reply Exchange(string endpoint, string pin, int command, string credential, string id, string text,CancellationToken cancellationToken=default(CancellationToken))
         {
             if (String.IsNullOrEmpty(pin) || pin.Length != 64) throw new ArgumentException(UiText.T("pair_first"));
-            if(Utf8.GetByteCount(credential)>256||Utf8.GetByteCount(id)>128)throw new ArgumentException(UiText.T("bad_request"));
-            if (Utf8.GetByteCount(text) > MaxText) throw new ArgumentException(UiText.T("text_too_long_protocol"));
+            ValidateRequest(command,credential,id,text);
             bool pinRejected=false;
             return WithConnection(endpoint,cancellationToken,delegate(TcpClient tcp){
             using (SslStream tls = new SslStream(tcp.GetStream(), false, delegate(object s, System.Security.Cryptography.X509Certificates.X509Certificate c,
@@ -147,7 +146,7 @@ namespace TvText
         }
         internal static byte[] EncodeRequest(int command, string credential, string id, string text)
         {
-            if (command < 1 || command > 4) throw new ArgumentOutOfRangeException("command");
+            ValidateRequest(command,credential,id,text);
             using (MemoryStream payload = new MemoryStream())
             {
                 WriteInt(payload, 0);
@@ -156,6 +155,12 @@ namespace TvText
                 int size = checked((int)payload.Length - 4); payload.Position = 0; WriteInt(payload, size);
                 return payload.ToArray();
             }
+        }
+        private static void ValidateRequest(int command,string credential,string id,string text)
+        {
+            if (command < 1 || command > 4) throw new ArgumentOutOfRangeException("command");
+            if(Utf8.GetByteCount(credential)>256||Utf8.GetByteCount(id)>128)throw new ArgumentException(UiText.T("bad_request"));
+            if(Utf8.GetByteCount(text)>MaxText)throw new ArgumentException(UiText.T("text_too_long_protocol"));
         }
         internal static Reply ReadReply(Stream stream)
         {
