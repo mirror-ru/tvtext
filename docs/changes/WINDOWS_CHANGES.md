@@ -1,5 +1,9 @@
 # Windows EXE changes
 
+## 16 November 2026 — separate main-form interaction workflows (local)
+
+- Moved device selection, pairing, removal, discovery, sending and transport error presentation out of `MainForm.cs` into `MainForm.Operations.cs`. This is still the same form and keeps its existing UI event ownership; the change only groups the coordinator logic in its own source file.
+
 ## 16 November 2026 — separate main-window layout and appearance code (local)
 
 - Moved main-form control construction into `MainForm.Layout.cs` and language/theme presentation into `MainForm.Appearance.cs`. They remain parts of the same form, so event behavior and control ownership are unchanged.

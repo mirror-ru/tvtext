@@ -29,10 +29,7 @@ class MainActivity : Activity() {
     }
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var runtime: BridgeRuntime
-    private lateinit var statusRow: LinearLayout
-    private lateinit var status: TextView
-    private lateinit var detail: TextView
-    private lateinit var infoIcon: TextView
+    private lateinit var statusCard: ReceiverStatusCard
     private lateinit var deviceCard: LinearLayout
     private lateinit var deviceCaption: TextView
     private lateinit var device: TextView
@@ -48,7 +45,6 @@ class MainActivity : Activity() {
     private val widgets by lazy { TvWidgets(this) }
     private lateinit var dialogs: ReceiverDialogs
     private var initialFocus: View? = null
-    private var statusColor = 0
     private var connectionBadgeCount = -1
     private val ink get() = TvTheme.ink
     private val muted get() = TvTheme.muted
@@ -138,31 +134,8 @@ class MainActivity : Activity() {
         panel.addView(header, full(dp(34)))
     }
     private fun buildStatusCard(panel: LinearLayout) {
-        statusRow = row().apply {
-            tag="information-card";gravity = Gravity.CENTER_VERTICAL
-            background=shape(TvTheme.inset,16).apply { setStroke(dp(1),TvTheme.border) }
-            setPadding(dp(12),dp(10),dp(14),dp(10))
-        }
-        infoIcon = label("i", 18, accent).apply {
-            gravity = Gravity.CENTER
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }
-        statusRow.addView(infoIcon,LinearLayout.LayoutParams(dp(34),dp(34)).apply { marginEnd=dp(11) })
-        val informationText=column()
-        status = label("", 18, ink).apply {
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            breakStrategy=Layout.BREAK_STRATEGY_SIMPLE
-        }
-        informationText.addView(status,full())
-        detail = label("", 14, muted).apply {
-            gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            setLineSpacing(dp(3).toFloat(), 1f)
-            breakStrategy=Layout.BREAK_STRATEGY_SIMPLE
-        }
-        informationText.addView(detail,full())
-        statusRow.addView(informationText,LinearLayout.LayoutParams(0,-2,1f))
-        panel.addView(statusRow, full().apply { topMargin = dp(16) })
+        statusCard = ReceiverStatusCard(this)
+        panel.addView(statusCard.view, full().apply { topMargin = dp(16) })
     }
     private fun buildDeviceCard(panel: LinearLayout) {
         deviceCard = row().apply {
@@ -319,28 +292,10 @@ class MainActivity : Activity() {
         }
         val title = tr(screen.titleKey)
         val message = tr(screen.messageKey)
-        renderStatus(screen,title,message,color,accessibilityOff,error)
+        statusCard.render(screen,title,message,color,accessibilityOff||error.isNotEmpty())
         renderConnectionActions(accessibilityOff,hasPin,accepting)
         renderDeviceIdentity(accepting)
         renderPairing(pin,hasPin)
-    }
-    private fun renderStatus(screen: ReceiverStatus,title: String,message: String,color: Int,accessibilityOff: Boolean,error: String) {
-        status.show(title); detail.show(message)
-        status.showIf(title.isNotEmpty())
-        detail.showIf(message.isNotEmpty())
-        val compactInfoState = screen.compact
-        // Ready and working states mirror the TV name card: a small caption above a clear value.
-        status.textSize = if (compactInfoState) 11f else 18f
-        status.setTextColor(if (compactInfoState) muted else ink)
-        status.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        detail.textSize = if (compactInfoState) 15f else 14f
-        detail.setTextColor(if (compactInfoState) ink else muted)
-        detail.setPadding(0,if(title.isNotEmpty())dp(if (compactInfoState) 3 else 6) else 0,0,0)
-        infoIcon.show(if(accessibilityOff||error.isNotEmpty())"!" else "i")
-        if (statusColor != color) {
-            statusColor=color;infoIcon.setTextColor(color)
-            infoIcon.background=shape(TvTheme.surface,10).apply { setStroke(dp(1),color) }
-        }
     }
     private fun renderConnectionActions(accessibilityOff: Boolean,hasPin: Boolean,accepting: Boolean) {
         languageButton.show(languageCode())

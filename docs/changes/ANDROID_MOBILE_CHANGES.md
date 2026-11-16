@@ -1,5 +1,9 @@
 # Android phone/tablet changes
 
+## 16 November 2026 — isolate the mobile TV list panel (local)
+
+- Moved TV row creation, selection visuals, empty-state rendering and list scrolling into `DeviceListPanel`. Activity behavior stays behind a small selection callback, and the list retains its test tags and scroll position when the language or theme rebuilds the screen.
+
 ## 16 November 2026 — keep the send action visible with the keyboard
 
 - When the main text editor opens the IME, the screen scrolls as soon as the first resized layout arrives and corrects the position if the keyboard continues resizing. This removes the visible pause before the send button appears. The editor keeps focus for typing; no additional outline or animation is added to the button.

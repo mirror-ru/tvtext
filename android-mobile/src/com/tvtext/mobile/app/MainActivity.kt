@@ -45,17 +45,13 @@ class MainActivity : Activity() {
     private val storageHealthy get() = controller.storageHealthy
     private val destroyed get() = controller.destroyed
     private val sending get() = controller.sending
-    private var lastRows: List<Tv>? = null
     private data class DeviceMessage(val key: String, val error: Boolean = false, val detail: String? = null)
     private val deviceMessages = mutableMapOf<String, DeviceMessage>()
     private var listMessage: DeviceMessage? = null
     private var refreshAnimation: ObjectAnimator? = null
     private lateinit var page: ScrollView
     private lateinit var input: EditText
-    private lateinit var rows: LinearLayout
-    private lateinit var rowsScroll: ScrollView
-    private lateinit var empty: LinearLayout
-    private lateinit var emptyMessage: TextView
+    private lateinit var devicePanel: DeviceListPanel
     private lateinit var send: TextView
     private lateinit var connect: TextView
     private lateinit var rename: TextView
@@ -175,9 +171,9 @@ class MainActivity : Activity() {
     }
     private fun rebuildUi(focus: String) {
         val draft=input.text.toString();val start=input.selectionStart;val end=input.selectionEnd
-        val pageY=page.scrollY;val rowsY=rowsScroll.scrollY
+        val pageY=page.scrollY;val rowsY=devicePanel.scrollPosition
         buildUi(draft);input.setSelection(start.coerceIn(0,input.length()),end.coerceIn(0,input.length()))
-        page.post { if(!destroyed) { page.scrollTo(0,pageY);rowsScroll.scrollTo(0,rowsY) } }
+        page.post { if(!destroyed) { page.scrollTo(0,pageY);devicePanel.restoreScroll(rowsY) } }
         if(focus=="theme") themeButton.requestFocus() else languageButton.requestFocus()
     }
     private fun LinearLayout.add(view: View, width: Int = -1, height: Int = -2, top: Int = 0) {
@@ -186,7 +182,7 @@ class MainActivity : Activity() {
     private fun buildUi(draft: String) {
         keyboardViewport?.close()
         keyboardViewport = null
-        refreshAnimation?.cancel();refreshAnimation=null;lastRows=null
+        refreshAnimation?.cancel();refreshAnimation=null
         setTheme(resources.getIdentifier(if(darkMode) "AppTheme.Dark" else "AppTheme", "style", packageName))
         val config = Configuration(resources.configuration).apply { setLocale(Locale(language)) }
         localized = createConfigurationContext(config)
@@ -230,16 +226,8 @@ class MainActivity : Activity() {
         title.addView(label(text("televisions"),11f,muted,true),LinearLayout.LayoutParams(0,-2,1f))
         refresh = iconButton("refresh",text("refresh")).apply { tag="refresh";setOnClickListener { scan() } }
         title.addView(refresh,LinearLayout.LayoutParams(dp(48),dp(48))); deviceCard.add(title)
-        rows = column()
-        rowsScroll = ScrollView(this).apply { tag="tv-list";isFillViewport = false; isVerticalScrollBarEnabled = true; isScrollbarFadingEnabled = true; addView(rows) }
-        val devicesArea=FrameLayout(this).apply { tag="devices-area" }
-        devicesArea.addView(rowsScroll,FrameLayout.LayoutParams(-1,-1))
-        empty = column().apply {
-            gravity = Gravity.CENTER; setPadding(dp(12),dp(12),dp(12),dp(12))
-        }
-        emptyMessage=label("",13f,muted).apply { tag="list-error";gravity=Gravity.CENTER;setLineSpacing(dp(3).toFloat(),1f) }
-        empty.add(emptyMessage);devicesArea.addView(empty,FrameLayout.LayoutParams(-1,-1))
-        deviceCard.add(devicesArea,height=rowHeight*3+dp(8),top=12)
+        devicePanel = DeviceListPanel(this, { palette }, ::dp, { rowHeight }, ::selectDevice)
+        deviceCard.add(devicePanel.view,height=rowHeight*3+dp(8),top=12)
         val actions = LinearLayout(this).apply { gravity = Gravity.END }
         rename = button(text("rename")).apply { tag = "rename"; setOnClickListener { renameSelected() } }
         connect = button(text("connect")).apply { tag = "connect"; setOnClickListener { selected()?.let { if(paired(it)) unpair(it) else pair(it) } } }
@@ -304,49 +292,19 @@ class MainActivity : Activity() {
     private fun renderDevices() {
         val values = choices()
         if(selectedId.isEmpty() || values.none { it.id == selectedId }) selectedId = values.firstOrNull()?.id.orEmpty()
-        if(lastRows != values) { rows.removeAllViews(); lastRows = values
-            values.forEach { tv -> rows.add(createDeviceRow(tv),height=rowHeight,top=if(rows.childCount == 0) 0 else 4) }
-        }
-        renderEmptyDeviceState(values)
-        renderSelection(); updateControls()
+        devicePanel.render(values, selectedId, ::paired, { tv ->
+            deviceMessages[tv.id]?.let(::messageText) ?: text(if(paired(tv)) "paired" else "not_paired")
+        }, listMessage?.let(::messageText).orEmpty(), listMessage?.error == true)
+        updateControls()
     }
-    private fun createDeviceRow(tv: Tv): LinearLayout {
-        val row = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10),0,dp(7),0); tag = "tv-${tv.id}"; isClickable = true; isFocusable = true; isFocusableInTouchMode = false
-            setOnClickListener { if(!busy) {
-                selectedId = tv.id; getPreferences(MODE_PRIVATE).edit().putString("selected",selectedId).apply(); clearMessage(); renderSelection(); updateControls()
-                input.clearFocus()
-                if (!isInTouchMode) requestFocus()
-                getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(input.windowToken,0)
-            } }
-        }
-        row.addView(Artwork(this,"tv",palette).apply { background = background(palette.surface,11) },LinearLayout.LayoutParams(dp(36),dp(36)))
-        val name = column().apply { setPadding(dp(10),0,0,0); tag = "labels" }
-        name.add(label(tv.displayName,14f).apply { maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END })
-        name.add(label(if(paired(tv)) text("paired") else text("not_paired"),11f,muted).apply { tag = "pair-label";maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END },top=4)
-        row.addView(name,LinearLayout.LayoutParams(0,-2,1f))
-        row.addView(Artwork(this,"check",palette).apply { tag = "check" },LinearLayout.LayoutParams(dp(32),dp(32)))
-        return row
-    }
-    private fun renderEmptyDeviceState(values: List<Tv>) {
-        rowsScroll.visibility = if(values.isEmpty()) View.INVISIBLE else View.VISIBLE
-        empty.visibility = if(values.isEmpty()&&listMessage!=null) View.VISIBLE else View.GONE
-        emptyMessage.text=listMessage?.let { messageText(it) }.orEmpty()
-        emptyMessage.setTextColor(if(listMessage?.error==true) palette.error else muted)
-    }
-    private fun renderSelection() {
-        for(i in 0 until rows.childCount) {
-            val row = rows.getChildAt(i) as LinearLayout; val selected = row.tag == "tv-$selectedId"
-            row.background = RippleDrawable(ColorStateList.valueOf(palette.ripple), background(if(selected) palette.selected else palette.row,12,if(selected) palette.selectedBorder else Color.TRANSPARENT),null)
-            row.findViewWithTag<View>("check").visibility = if(selected) View.VISIBLE else View.INVISIBLE
-            val tv = choices().getOrNull(i)
-            val caption=tv?.let { deviceMessages[it.id] }
-            row.findViewWithTag<TextView>("pair-label").apply {
-                text=caption?.let { messageText(it) } ?: text(if(tv != null && paired(tv)) "paired" else "not_paired")
-                setTextColor(muted)
-            }
-            row.contentDescription=listOfNotNull(tv?.displayName,caption?.let { messageText(it) } ?: text(if(tv!=null&&paired(tv)) "paired" else "not_paired")).joinToString(", ")
-        }
+    private fun selectDevice(tv: Tv) {
+        if (busy) return
+        selectedId = tv.id
+        getPreferences(MODE_PRIVATE).edit().putString("selected", selectedId).apply()
+        clearMessage()
+        input.clearFocus()
+        if (!devicePanel.view.isInTouchMode) devicePanel.focus(tv.id)
+        getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(input.windowToken, 0)
     }
     private fun updateControls() {
         val tv = selected()
@@ -383,7 +341,7 @@ class MainActivity : Activity() {
         dialogs.pair { pin -> controller.probe(tv) { fingerprint ->
             dialogs.fingerprint(fingerprint, {
                 controller.pair(tv,pin,fingerprint) {
-                    selectedId=tv.id;lastRows=null;clearMessage(tv.id);input.requestFocus()
+                    selectedId=tv.id;clearMessage(tv.id);input.requestFocus()
                 }
             }, { clearMessage(tv.id) })
         } }

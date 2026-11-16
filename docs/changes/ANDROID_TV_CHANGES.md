@@ -1,5 +1,9 @@
 # Android TV changes
 
+## 16 November 2026 — isolate receiver status-card rendering (local)
+
+- Moved status-card view construction and tone/compact-state styling into `ReceiverStatusCard`. The Activity still resolves receiver state and handles lifecycle, while the component owns only its card views.
+
 ## 16 November 2026 — isolate the connected-device count badge (local)
 
 - Moved the count badge drawing code out of `MainActivity` into `ConnectionCountBadge`. It receives its display density and tint directly; the main screen keeps the same badge layout and rendering.
@@ -28,7 +32,7 @@
 ## 26 October 2026 — native Android 12 and external-field regression
 
 - Installed an isolated official API 31 AVD and tested the existing 2.0.9 receiver APK without replacing release assets or changing application sources.
-- `test-tv-ui.ps1` now builds a separate API 28+ field APK. Added cross-package cursor, Unicode/multiline, selection, clipboard and unchanged-keyboard checks; foreground clipboard checks remain separate.
+- `tests/test-tv-ui.ps1` now builds a separate API 28+ field APK. Added cross-package cursor, Unicode/multiline, selection, clipboard and unchanged-keyboard checks; foreground clipboard checks remain separate.
 - Native API 31 inserts text and preserves the selected IME, but background clipboard restoration fails because Android denies clipboard reads to the receiver. The strict regression remains failing and the limitation is documented in both languages; see `build/api31-tv-result-final.log` and `docs/testing/COMPATIBILITY.md`.
 
 - The expanded API 34 TV suite passed, including the external field and unchanged clipboard: `build/tv-ui-test-e178257e65554c6881db79c4961f0fa5`, log `build/api34-tv-result-final.log`.
@@ -192,7 +196,7 @@
 - Primary button fill is separate from the accent text color to keep button labels readable in both themes.
 - Recreating the screen for a theme or language change preserves the receiver runtime, current pairing code, saved connections and TLS identity. Focus returns to the settings button used to make the change.
 - Initial focus is restored after the window gains focus so the scroll container cannot take it from the accessibility/settings action.
-- Added `test-tv-ui.ps1` and isolated emulator checks under `tests/android-tv/ui/`. The Java test package uses the APK's Kotlin runtime to avoid conflicts with R8-optimized Kotlin classes.
+- Added `tests/test-tv-ui.ps1` and isolated emulator checks under `tests/android-tv/ui/`. The Java test package uses the APK's Kotlin runtime to avoid conflicts with R8-optimized Kotlin classes.
 
 ### Verification
 
