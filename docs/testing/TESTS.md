@@ -2,7 +2,10 @@
 
 ## Local refactor, protocol, build-cache and diagnostics checks — 16 November 2026
 
-- The mobile composer now scrolls immediately to keep the complete text card visible when the keyboard opens. The updated mobile APK passed build and signature verification; the instrumentation assertion compiled, but could not run because no emulator is installed.
+- When the mobile keyboard opens, a separate lifecycle-aware viewport helper reveals the enabled “Send to TV” button as soon as the first resized layout arrives and corrects the position while the window continues resizing. The editor retains focus. The updated instrumentation source compiles; runtime instrumentation was not run because no AVD is currently installed.
+- `test.ps1` passed after the UI split and protocol boundary additions: Windows UI/TLS and DPI scenarios, Android TV core, build tooling, and the real Windows client sending an exact 32 KiB UTF-8 payload to the TV fixture. Results: `build/test-5ce2b2fae7d14b838359bdaff0d76cff/`.
+- `test-mobile.ps1` passed with exact 32 KiB UTF-8 boundary and rejection cases: `build/mobile-test-4a78458955734d28bc7e1249d25061d1/`.
+- `build.ps1 -Target All` built all three applications with verified APK signatures in `build/optimization-check/`.
 - Reorganized the test tree by product and layer without removing or rewriting scenarios; see the [test map](../../tests/README.md) ([Russian](../../tests/README.ru.md)).
 - `test.ps1` passed after the folder move: tooling/cache regressions, Windows DPI/theme/pairing/list/dialog UI, Windows-to-TV TLS integration, receiver core tests, and shared protocol vectors. Results: `build/test-943a75e5c1c7484b8ff32fc2edca454e/`.
 - `test-mobile.ps1` passed from the reorganized paths: JVM/controller/TLS suite and the same protocol vectors. Results: `build/mobile-test-32e5ff8c349846278dff12ebccbc06af/`.

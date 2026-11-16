@@ -1,5 +1,10 @@
 # Android TV changes
 
+## 16 November 2026 — isolate the connected-device count badge (local)
+
+- Moved the count badge drawing code out of `MainActivity` into `ConnectionCountBadge`. It receives its display density and tint directly; the main screen keeps the same badge layout and rendering.
+- The receiver protocol writer now enforces the same command, field-size and strict UTF-8 limits as the clients. Core coverage round-trips an exact 32 KiB UTF-8 request and rejects malformed or oversized requests.
+
 ## 16 November 2026 — shared protocol compatibility vector (local)
 
 - Added the shared golden request/response vector to TV receiver core tests, checking exact serialized bytes and parsing independently of the other client implementations.

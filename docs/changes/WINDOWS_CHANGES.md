@@ -1,5 +1,10 @@
 # Windows EXE changes
 
+## 16 November 2026 — separate main-window layout and appearance code (local)
+
+- Moved main-form control construction into `MainForm.Layout.cs` and language/theme presentation into `MainForm.Appearance.cs`. They remain parts of the same form, so event behavior and control ownership are unchanged.
+- Centralized request validation for the Windows transport and encoder. The Windows TLS integration sends an exact 32 KiB UTF-8 payload to the receiver fixture; unit coverage checks over-limit text and credential/ID rejection before network activity.
+
 ## 16 November 2026 — protocol vectors and transport diagnostics (local)
 
 - Added a shared golden request/response vector used by the Windows, Android TV and mobile protocol tests. Windows now uses a separately testable production request encoder, so the test checks exact bytes rather than only client/server agreement.
