@@ -29,70 +29,94 @@ class ReceiverDialogs(context: Context, private val runtime: BridgeRuntime,
         val content = column().apply { tag="connections-panel";setPadding(dp(24),dp(24),dp(24),dp(24)) }
         var listDialog: AlertDialog? = null
         val tokens = runtime.engine.pairedTokens()
-        val header=row().apply { gravity=Gravity.CENTER_VERTICAL }
-        header.addView(computerBadge(40),LinearLayout.LayoutParams(dp(40),dp(40)))
-        header.addView(label(tr("connected_pcs"),22,ink).apply {
+        content.addView(connectionsHeader(tokens.size),full())
+        if (tokens.isEmpty()) {
+            content.addView(emptyConnectionsCard(),full().apply { topMargin=dp(20) })
+        } else {
+            val list=buildConnectionRows(tokens) { token,number ->
+                listDialog?.dismiss()
+                confirmRevoke(token,number)
+            }
+            content.addView(list.scroll,full(list.height).apply { topMargin=dp(20) })
+            val footer=connectionsFooter(list.deleteActions) { listDialog?.dismiss() }
+            content.addView(footer,full().apply { topMargin=dp(20) })
+            showConnectionsDialog(content,list.deleteActions.firstOrNull() ?: footer)
+            return
+        }
+        val footer=connectionsFooter(emptyList()) { listDialog?.dismiss() }
+        content.addView(footer,full().apply { topMargin=dp(20) })
+        showConnectionsDialog(content,footer)
+    }
+    private fun showConnectionsDialog(content: View,initialFocus: View) {
+        val current=showDialog(AlertDialog.Builder(context),customView=content)
+        val width=minOf(520,resources.configuration.screenWidthDp-64)
+        current.window?.setLayout(dp(width),WindowManager.LayoutParams.WRAP_CONTENT)
+        content.post { initialFocus.requestFocus() }
+    }
+    private data class ConnectionRows(val scroll: ScrollView,val deleteActions: List<View>,val height: Int)
+    private fun connectionsHeader(count: Int)=row().apply {
+        gravity=Gravity.CENTER_VERTICAL
+        addView(computerBadge(40),LinearLayout.LayoutParams(dp(40),dp(40)))
+        addView(label(tr("connected_pcs"),22,ink).apply {
             typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
         },LinearLayout.LayoutParams(0,-2,1f).apply { marginStart=dp(12);marginEnd=dp(12) })
-        header.addView(label(tokens.size.toString(),13,accent).apply {
-            tag="connections-count";gravity=Gravity.CENTER;contentDescription=tr("connections_count_format",tokens.size)
+        addView(label(count.toString(),13,accent).apply {
+            tag="connections-count";gravity=Gravity.CENTER;contentDescription=tr("connections_count_format",count)
             typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL);background=shape(TvTheme.icon,10)
             setPadding(dp(10),0,dp(10),0)
         },LinearLayout.LayoutParams(-2,dp(28)))
-        content.addView(header,full())
-        var firstRemove: View? = null
+    }
+    private fun emptyConnectionsCard()=column().apply {
+        tag="connections-empty";gravity=Gravity.CENTER;setPadding(dp(16),dp(24),dp(16),dp(24))
+        background=shape(TvTheme.inset,16)
+        addView(computerBadge(48),LinearLayout.LayoutParams(dp(48),dp(48)))
+        addView(label(tr("no_connected_pcs"),15,muted).apply { gravity=Gravity.CENTER },full().apply { topMargin=dp(12) })
+    }
+    private fun buildConnectionRows(tokens: List<String>,onDelete: (String,Int) -> Unit): ConnectionRows {
+        val itemHeight=maxOf(dp(72),TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,40f,resources.displayMetrics).toInt()+dp(24))
+        val list=column()
         val deleteActions=mutableListOf<View>()
-        if (tokens.isEmpty()) {
-            val empty=column().apply {
-                tag="connections-empty";gravity=Gravity.CENTER;setPadding(dp(16),dp(24),dp(16),dp(24))
-                background=shape(TvTheme.inset,16)
-            }
-            empty.addView(computerBadge(48),LinearLayout.LayoutParams(dp(48),dp(48)))
-            empty.addView(label(tr("no_connected_pcs"),15,muted).apply { gravity=Gravity.CENTER },full().apply { topMargin=dp(12) })
-            content.addView(empty,full().apply { topMargin=dp(20) })
-        } else {
-            val list=column()
-            val itemHeight=maxOf(dp(72),TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,40f,resources.displayMetrics).toInt()+dp(24))
-            tokens.forEachIndexed { index, token ->
-                val item = row().apply {
-                    tag="connection-item"
-                    gravity = Gravity.CENTER_VERTICAL
-                    background=StateListDrawable().apply {
-                        addState(intArrayOf(android.R.attr.state_activated),shape(TvTheme.inset,16,accent))
-                        addState(intArrayOf(),shape(TvTheme.inset,16).apply { setStroke(dp(1),TvTheme.border) })
-                    }
-                    setPadding(dp(14),dp(12),dp(12),dp(12))
-                }
-                item.addView(computerBadge(40),LinearLayout.LayoutParams(dp(40),dp(40)))
-                val text = column()
-                text.addView(label(tr("pc_title_format", index + 1),17,ink).apply {
-                    typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                    maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.END
-                }, full())
-                text.addView(label(tr("pc_id_format", token.takeLast(6)), 12, muted), full().apply { topMargin = dp(3) })
-                item.addView(text,LinearLayout.LayoutParams(0,-2,1f).apply { marginStart=dp(12) })
-                val remove = deleteButton {
-                    listDialog?.dismiss()
-                    confirmRevoke(token,index+1)
-                }.apply {
-                    tag="connection-delete";contentDescription=tr("delete_connection")+": "+tr("pc_title_format",index+1)
-                    setOnFocusChangeListener { _,focused -> item.isActivated=focused }
-                }
-                if(firstRemove==null)firstRemove=remove
-                deleteActions.add(remove)
-                item.addView(remove,LinearLayout.LayoutParams(dp(48),dp(48)).apply { marginStart=dp(12) })
-                list.addView(item,full(itemHeight).apply { if(index>0)topMargin=dp(8) })
-            }
-            val desiredHeight=minOf(tokens.size,3)*itemHeight+dp(8)*(minOf(tokens.size,3)-1)
-            val availableHeight=maxOf(itemHeight,dp(resources.configuration.screenHeightDp-240))
-            val scroll=ScrollView(context).apply {
-                tag="connections-list";isFocusable=false;isVerticalScrollBarEnabled=true;isScrollbarFadingEnabled=true
-                descendantFocusability=ViewGroup.FOCUS_AFTER_DESCENDANTS;addView(list)
-            }
-            content.addView(scroll,full(minOf(desiredHeight,availableHeight)).apply { topMargin=dp(20) })
+        tokens.forEachIndexed { index,token ->
+            val item=connectionRow(token,index+1,onDelete,deleteActions)
+            list.addView(item,full(itemHeight).apply { if(index>0)topMargin=dp(8) })
         }
+        val visibleCount=minOf(tokens.size,3)
+        val desiredHeight=visibleCount*itemHeight+dp(8)*(visibleCount-1)
+        val availableHeight=maxOf(itemHeight,dp(resources.configuration.screenHeightDp-240))
+        val scroll=ScrollView(context).apply {
+            tag="connections-list";isFocusable=false;isVerticalScrollBarEnabled=true;isScrollbarFadingEnabled=true
+            descendantFocusability=ViewGroup.FOCUS_AFTER_DESCENDANTS;addView(list)
+        }
+        return ConnectionRows(scroll,deleteActions,minOf(desiredHeight,availableHeight))
+    }
+    private fun connectionRow(token: String,number: Int,onDelete: (String,Int) -> Unit,deleteActions: MutableList<View>): LinearLayout {
+        val item=row().apply {
+            tag="connection-item";gravity=Gravity.CENTER_VERTICAL
+            background=StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_activated),shape(TvTheme.inset,16,accent))
+                addState(intArrayOf(),shape(TvTheme.inset,16).apply { setStroke(dp(1),TvTheme.border) })
+            }
+            setPadding(dp(14),dp(12),dp(12),dp(12))
+        }
+        item.addView(computerBadge(40),LinearLayout.LayoutParams(dp(40),dp(40)))
+        val text=column()
+        text.addView(label(tr("pc_title_format",number),17,ink).apply {
+            typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
+            maxLines=1;ellipsize=android.text.TextUtils.TruncateAt.END
+        },full())
+        text.addView(label(tr("pc_id_format",token.takeLast(6)),12,muted),full().apply { topMargin=dp(3) })
+        item.addView(text,LinearLayout.LayoutParams(0,-2,1f).apply { marginStart=dp(12) })
+        val remove=deleteButton { onDelete(token,number) }.apply {
+            tag="connection-delete";contentDescription=tr("delete_connection")+": "+tr("pc_title_format",number)
+            setOnFocusChangeListener { _,focused -> item.isActivated=focused }
+        }
+        deleteActions.add(remove)
+        item.addView(remove,LinearLayout.LayoutParams(dp(48),dp(48)).apply { marginStart=dp(12) })
+        return item
+    }
+    private fun connectionsFooter(deleteActions: List<View>,onClose: () -> Unit): View {
         val footer=row().apply { gravity=Gravity.END }
-        val close=button(tr("close")) { listDialog?.dismiss() }.apply { tag="connections-close" }
+        val close=button(tr("close")) { onClose() }.apply { tag="connections-close" }
         deleteActions.forEachIndexed { index,action ->
             action.setOnKeyListener { _,key,event ->
                 if(event.action!=KeyEvent.ACTION_DOWN)false
@@ -107,11 +131,7 @@ class ReceiverDialogs(context: Context, private val runtime: BridgeRuntime,
             if(event.action==KeyEvent.ACTION_DOWN&&key==KeyEvent.KEYCODE_DPAD_UP)deleteActions.lastOrNull()?.requestFocus() ?: false else false
         }
         footer.addView(close,LinearLayout.LayoutParams(dp(112),dp(44)))
-        content.addView(footer,full().apply { topMargin=dp(20) })
-        listDialog=showDialog(AlertDialog.Builder(context),customView=content)
-        val width=minOf(520,resources.configuration.screenWidthDp-64)
-        listDialog?.window?.setLayout(dp(width),WindowManager.LayoutParams.WRAP_CONTENT)
-        content.post { (firstRemove ?: close).requestFocus() }
+        return footer
     }
     private fun dialogContent(title: String, glyph: String, color: Int = accent)=column().apply {
         setPadding(dp(24),dp(24),dp(24),dp(24))

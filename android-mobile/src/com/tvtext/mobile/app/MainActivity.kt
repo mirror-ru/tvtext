@@ -8,11 +8,13 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
@@ -22,6 +24,7 @@ import android.text.TextWatcher
 import android.view.*
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.view.WindowInsets
 import android.view.animation.LinearInterpolator
 import android.widget.*
 import java.util.Locale
@@ -62,6 +65,9 @@ class MainActivity : Activity() {
     private lateinit var refresh: View
     private lateinit var languageButton: TextView
     private lateinit var themeButton: View
+    private lateinit var textCard: LinearLayout
+    private var imeLayoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
+    private var imeWasVisible = false
     private val palette get() = Palette(darkMode)
     private val ink get() = palette.ink
     private val muted get() = palette.muted
@@ -111,6 +117,9 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         controller.destroy()
         refreshAnimation?.cancel()
+        imeLayoutListener?.let { window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(it) }
+        imeLayoutListener = null
+        imeWasVisible = false
         dialogs.dismiss()
         main.removeCallbacksAndMessages(null)
         super.onDestroy()
@@ -180,6 +189,9 @@ class MainActivity : Activity() {
         addView(view, LinearLayout.LayoutParams(width, height).apply { topMargin = dp(top) })
     }
     private fun buildUi(draft: String) {
+        imeLayoutListener?.let { window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(it) }
+        imeLayoutListener = null
+        imeWasVisible = false
         refreshAnimation?.cancel();refreshAnimation=null;lastRows=null
         setTheme(resources.getIdentifier(if(darkMode) "AppTheme.Dark" else "AppTheme", "style", packageName))
         val config = Configuration(resources.configuration).apply { setLocale(Locale(language)) }
@@ -194,6 +206,15 @@ class MainActivity : Activity() {
         val content = column().apply { setPadding(dp(20),dp(18),dp(20),dp(12));isFocusableInTouchMode=true }
         stage.addView(content,FrameLayout.LayoutParams(dp(minOf(resources.configuration.screenWidthDp,maxWidth)),-2,Gravity.TOP or Gravity.CENTER_HORIZONTAL))
         page.addView(stage, FrameLayout.LayoutParams(-1,-2)); setContentView(page);content.requestFocus()
+        buildHeader(content)
+        val workspace=buildWorkspace(content,wide)
+        buildDeviceCard(workspace,wide)
+        buildComposer(workspace,wide,draft)
+        renderDevices()
+        updateRefreshAnimation()
+        installImeLayoutListener()
+    }
+    private fun buildHeader(content: LinearLayout) {
         val header = FrameLayout(this)
         val heading = column()
         heading.add(label("TVText",32f,ink,true))
@@ -202,9 +223,13 @@ class MainActivity : Activity() {
         header.addView(heading, FrameLayout.LayoutParams(-2,-2).apply { gravity = Gravity.START or Gravity.CENTER_VERTICAL })
         header.addView(Artwork(this,"link",palette), FrameLayout.LayoutParams(dp(124),dp(68)).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL })
         content.add(header,height=dp(76))
-
+    }
+    private fun buildWorkspace(content: LinearLayout,wide: Boolean): LinearLayout {
         val workspace=LinearLayout(this).apply { orientation=if(wide) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL; gravity=Gravity.TOP }
         content.add(workspace,top=18)
+        return workspace
+    }
+    private fun buildDeviceCard(workspace: LinearLayout,wide: Boolean) {
         val deviceCard = card()
         if(wide) workspace.addView(deviceCard,LinearLayout.LayoutParams(0,-2,1f)) else workspace.add(deviceCard)
         val title = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
@@ -227,10 +252,16 @@ class MainActivity : Activity() {
         actions.addView(rename,LinearLayout.LayoutParams(0,dp(44),1f))
         actions.addView(Space(this),LinearLayout.LayoutParams(dp(8),1))
         actions.addView(connect,LinearLayout.LayoutParams(0,dp(44),1f)); deviceCard.add(actions,top=12)
-
+    }
+    private fun buildComposer(workspace: LinearLayout,wide: Boolean,draft: String) {
         val composer=column()
         if(wide) workspace.addView(composer,LinearLayout.LayoutParams(0,-2,1f).apply { leftMargin=dp(20) }) else workspace.add(composer,top=14)
-        val textCard = card(); composer.add(textCard)
+        buildTextCard(composer,draft)
+        buildSendButton(composer)
+        buildComposerFooter(composer)
+    }
+    private fun buildTextCard(composer: LinearLayout,draft: String) {
+        textCard = card().apply { tag="text-card" }; composer.add(textCard)
         textCard.add(label(text("text_prompt"),16f,ink,true))
         input = EditText(this).apply {
             tag = "text-input"; contentDescription = text("text_accessible"); textSize = 18f; setTextColor(ink)
@@ -250,11 +281,15 @@ class MainActivity : Activity() {
             })
         }
         textCard.add(input,top=10)
+    }
+    private fun buildSendButton(composer: LinearLayout) {
         val sendPanel = FrameLayout(this)
         send = button(text("send"),true).apply { textSize = 16f; tag = "send"; setOnClickListener { sendText() } }
         sendPanel.addView(send,FrameLayout.LayoutParams(-1,-1))
         sendPanel.addView(Artwork(this,"send",palette),FrameLayout.LayoutParams(dp(40),dp(40)).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL; rightMargin = dp(10) })
         composer.add(sendPanel,height=dp(54),top=16)
+    }
+    private fun buildComposerFooter(composer: LinearLayout) {
         val footer = LinearLayout(this).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL }
         languageButton = button(language.uppercase(Locale.ROOT)).apply {
             textSize = 13f; contentDescription = text("language"); tag = "language"
@@ -268,8 +303,40 @@ class MainActivity : Activity() {
         }
         footer.addView(languageButton,LinearLayout.LayoutParams(dp(54),dp(48)))
         footer.addView(themeButton,LinearLayout.LayoutParams(dp(48),dp(48)).apply { leftMargin=dp(8) }); composer.add(footer,top=10)
-        renderDevices()
-        updateRefreshAnimation()
+    }
+    private fun installImeLayoutListener() {
+        val decor=window.decorView
+        val listener=ViewTreeObserver.OnGlobalLayoutListener {
+            val visible=this::input.isInitialized&&input.hasFocus()&&isImeVisible()
+            if(visible&&!imeWasVisible) {
+                imeWasVisible=true
+                page.postDelayed({ revealTextCard() },220)
+            } else if(!visible) imeWasVisible=false
+        }
+        imeLayoutListener=listener
+        decor.viewTreeObserver.addOnGlobalLayoutListener(listener)
+    }
+    private fun isImeVisible(): Boolean {
+        val decor=window.decorView
+        return if(Build.VERSION.SDK_INT>=30) decor.rootWindowInsets?.isVisible(WindowInsets.Type.ime())==true
+        else {
+            val visibleFrame=Rect();decor.getWindowVisibleDisplayFrame(visibleFrame)
+            val screenHeight=maxOf(decor.rootView.height,resources.displayMetrics.heightPixels)
+            screenHeight-visibleFrame.bottom>screenHeight/6
+        }
+    }
+    private fun revealTextCard() {
+        if(destroyed||!this::input.isInitialized||!input.hasFocus()||!isImeVisible())return
+        val visibleFrame=Rect();window.decorView.getWindowVisibleDisplayFrame(visibleFrame)
+        val location=IntArray(2);textCard.getLocationOnScreen(location)
+        val top=location[1];val bottom=top+textCard.height
+        val margin=dp(10)
+        val scrollBy=when {
+            bottom>visibleFrame.bottom-margin -> bottom-visibleFrame.bottom+margin
+            top<visibleFrame.top+margin -> top-visibleFrame.top-margin
+            else -> 0
+        }
+        if(scrollBy!=0)page.scrollBy(0,scrollBy)
     }
     private fun choices(): List<Tv> = catalog.choices()
     private fun selected() = choices().firstOrNull { it.id == selectedId }
@@ -278,30 +345,34 @@ class MainActivity : Activity() {
         val values = choices()
         if(selectedId.isEmpty() || values.none { it.id == selectedId }) selectedId = values.firstOrNull()?.id.orEmpty()
         if(lastRows != values) { rows.removeAllViews(); lastRows = values
-            values.forEach { tv ->
-                val row = LinearLayout(this).apply {
-                    gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10),0,dp(7),0); tag = "tv-${tv.id}"; isClickable = true; isFocusable = true; isFocusableInTouchMode = false
-                    setOnClickListener { if(!busy) {
-                        selectedId = tv.id; getPreferences(MODE_PRIVATE).edit().putString("selected",selectedId).apply(); clearMessage(); renderSelection(); updateControls()
-                        input.clearFocus()
-                        if (!isInTouchMode) requestFocus()
-                        getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(input.windowToken,0)
-                    } }
-                }
-                row.addView(Artwork(this,"tv",palette).apply { background = background(palette.surface,11) },LinearLayout.LayoutParams(dp(36),dp(36)))
-                val name = column().apply { setPadding(dp(10),0,0,0); tag = "labels" }
-                name.add(label(tv.displayName,14f).apply { maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END })
-                name.add(label(if(paired(tv)) text("paired") else text("not_paired"),11f,muted).apply { tag = "pair-label";maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END },top=4)
-                row.addView(name,LinearLayout.LayoutParams(0,-2,1f))
-                row.addView(Artwork(this,"check",palette).apply { tag = "check" },LinearLayout.LayoutParams(dp(32),dp(32)))
-                rows.add(row,height=rowHeight,top=if(rows.childCount == 0) 0 else 4)
-            }
+            values.forEach { tv -> rows.add(createDeviceRow(tv),height=rowHeight,top=if(rows.childCount == 0) 0 else 4) }
         }
+        renderEmptyDeviceState(values)
+        renderSelection(); updateControls()
+    }
+    private fun createDeviceRow(tv: Tv): LinearLayout {
+        val row = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL; setPadding(dp(10),0,dp(7),0); tag = "tv-${tv.id}"; isClickable = true; isFocusable = true; isFocusableInTouchMode = false
+            setOnClickListener { if(!busy) {
+                selectedId = tv.id; getPreferences(MODE_PRIVATE).edit().putString("selected",selectedId).apply(); clearMessage(); renderSelection(); updateControls()
+                input.clearFocus()
+                if (!isInTouchMode) requestFocus()
+                getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(input.windowToken,0)
+            } }
+        }
+        row.addView(Artwork(this,"tv",palette).apply { background = background(palette.surface,11) },LinearLayout.LayoutParams(dp(36),dp(36)))
+        val name = column().apply { setPadding(dp(10),0,0,0); tag = "labels" }
+        name.add(label(tv.displayName,14f).apply { maxLines=1; ellipsize=android.text.TextUtils.TruncateAt.END })
+        name.add(label(if(paired(tv)) text("paired") else text("not_paired"),11f,muted).apply { tag = "pair-label";maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END },top=4)
+        row.addView(name,LinearLayout.LayoutParams(0,-2,1f))
+        row.addView(Artwork(this,"check",palette).apply { tag = "check" },LinearLayout.LayoutParams(dp(32),dp(32)))
+        return row
+    }
+    private fun renderEmptyDeviceState(values: List<Tv>) {
         rowsScroll.visibility = if(values.isEmpty()) View.INVISIBLE else View.VISIBLE
         empty.visibility = if(values.isEmpty()&&listMessage!=null) View.VISIBLE else View.GONE
         emptyMessage.text=listMessage?.let { messageText(it) }.orEmpty()
         emptyMessage.setTextColor(if(listMessage?.error==true) palette.error else muted)
-        renderSelection(); updateControls()
     }
     private fun renderSelection() {
         for(i in 0 until rows.childCount) {

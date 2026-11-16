@@ -30,6 +30,10 @@
     <string name="disabled">Включите TVText в специальных возможностях телевизора.</string>
     <string name="uncertain">Нет подтверждения. Проверьте текст на ТВ перед повторной отправкой.</string>
     <string name="offline">Телевизор не ответил. Проверьте Wi-Fi и обновите список.</string>
+    <string name="network_connect_failed">Не удалось установить TCP-соединение с ТВ. Проверьте, что телевизор включён и подключён к Wi-Fi</string>
+    <string name="network_tls_failed">Не удалось установить защищённое соединение с ТВ. Проверьте дату и время на устройствах</string>
+    <string name="network_delivery_failed">Связь прервалась при отправке. Проверьте текст на ТВ перед повтором</string>
+    <string name="network_response_failed">ТВ не подтвердил ответ. Проверьте Wi-Fi и состояние TVText на телевизоре</string>
     <string name="address_updated">Соединение с ТВ восстановлено. Проверьте текст на ТВ перед повторной отправкой.</string>
     <string name="too_long">Текст превышает 32 КБ в UTF-8. Сократите его.</string>
     <string name="protocol_error">Некорректный ответ телевизора. Обновите TVText на обоих устройствах.</string>

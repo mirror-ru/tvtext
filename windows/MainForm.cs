@@ -51,6 +51,18 @@ namespace TvText
             connection=initial;
             foreach(Connection profile in profiles)if(profile.DeviceId==initial.DeviceId)connection=profile;
             if(preview&&initial.Token.Length>0&&!profiles.Exists(delegate(Connection p){return p.DeviceId==initial.DeviceId;}))profiles.Add(initial);
+            BuildMainLayout();
+            WireEvents();
+            InitializeWindowState();
+            HandleCreated+=delegate{Theme.ApplyTitleBar(this);};
+            FormClosed+=delegate{StopWork();};ApplyLanguage();ApplyTheme();UpdateControls();
+            // Enable DPI autoscaling only after the complete tree is attached.
+            // Enabling it before Controls.Add can scale nested table metrics
+            // once on parenting and again when this form resumes layout.
+            AutoScaleDimensions=new SizeF(96F,96F);AutoScaleMode=AutoScaleMode.Dpi;ResumeLayout(true);
+        }
+        private void BuildMainLayout()
+        {
             Text=UiText.T("app_title");StartPosition=FormStartPosition.CenterScreen;
             try{Icon=Icon.ExtractAssociatedIcon(Application.ExecutablePath);}catch{}
             Font=new Font("Segoe UI",10F);ForeColor=Theme.Ink;
@@ -59,6 +71,14 @@ namespace TvText
             TableLayoutPanel root=new TableLayoutPanel{Name="MainLayout",Dock=DockStyle.Top,Height=ClientSize.Height,MinimumSize=new Size(0,664),Padding=new Padding(28,23,28,18),ColumnCount=1,RowCount=5};
             viewport.ClientSizeChanged+=delegate{root.Height=Math.Max(root.MinimumSize.Height,viewport.ClientSize.Height);};
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+            BuildHeader(root);
+            BuildDeviceCard(root);
+            BuildTextCard(root);
+            BuildFooter(root);
+            viewport.Controls.Add(root);Controls.Add(viewport);
+        }
+        private void BuildHeader(TableLayoutPanel root)
+        {
             // The native edit control needs a few extra pixels around its
             // three visible lines.  Reclaim that space from the generous
             // header while keeping the device card, send row and footer sizes
@@ -73,7 +93,9 @@ namespace TvText
             {
                 art.Location=new Point(header.ClientSize.Width-art.Width,0);
             };root.Controls.Add(header,0,0);
-
+        }
+        private void BuildDeviceCard(TableLayoutPanel root)
+        {
             Card deviceCard=new Card{Name="DeviceCard",Dock=DockStyle.Fill,Margin=new Padding(0,0,0,14),Padding=new Padding(17,13,17,10)};
             TableLayoutPanel deviceLayout=new TableLayoutPanel{Name="DeviceLayout",Dock=DockStyle.Fill,BackColor=Theme.Surface,ColumnCount=4,RowCount=3,Margin=Padding.Empty};
             deviceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
@@ -96,7 +118,9 @@ namespace TvText
             tips.SetToolTip(refresh,UiText.T("refresh_tip"));deviceLayout.Controls.Add(refresh,3,0);
             status.Name="ConnectionStatus";status.Dock=DockStyle.Fill;status.ForeColor=Theme.Muted;status.Font=new Font("Segoe UI",9F);status.Margin=new Padding(1,6,0,0);status.AutoEllipsis=true;
             deviceLayout.Controls.Add(status,0,2);deviceLayout.SetColumnSpan(status,4);deviceCard.Controls.Add(deviceLayout);root.Controls.Add(deviceCard,0,1);
-
+        }
+        private void BuildTextCard(TableLayoutPanel root)
+        {
             Card textCard=new Card{Name="TextCard",Dock=DockStyle.Top,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,Margin=new Padding(0,0,0,15),Padding=new Padding(20,16,20,14)};
             TableLayoutPanel textLayout=new TableLayoutPanel{Name="TextLayout",Dock=DockStyle.Top,AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,BackColor=Theme.Surface,ColumnCount=1,RowCount=2};
             textLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));textLayout.RowStyles.Add(new RowStyle(SizeType.Absolute,32));
@@ -106,6 +130,9 @@ namespace TvText
             input.Font=new Font("Segoe UI",15F);input.ForeColor=Theme.Ink;input.BackColor=Theme.Surface;input.Dock=DockStyle.Top;input.MaxLength=32768;input.AccessibleName=UiText.T("input_accessible");textLayout.Controls.Add(input,0,1);
             textCard.Controls.Add(textLayout);root.Controls.Add(textCard,0,2);
             send.Name="SendButton";send.Glyph="send";send.Primary=true;send.Font=new Font("Segoe UI",12F,FontStyle.Bold);send.Dock=DockStyle.Fill;send.Margin=new Padding(0,0,0,7);root.Controls.Add(send,0,3);
+        }
+        private void BuildFooter(TableLayoutPanel root)
+        {
             TableLayoutPanel footer=new TableLayoutPanel{Name="Footer",Dock=DockStyle.Fill,BackColor=Theme.Canvas,ColumnCount=3,RowCount=1,Margin=Padding.Empty};
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,104));footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,104));
             footer.RowStyles.Add(new RowStyle(SizeType.Percent,100));
@@ -116,17 +143,35 @@ namespace TvText
             languageButton.Name="LanguageButton";languageButton.Dock=DockStyle.Fill;languageButton.Margin=new Padding(4,8,4,8);languageButton.Font=new Font("Segoe UI",10F,FontStyle.Bold);footerActions.Controls.Add(languageButton,0,0);
             themeButton.Name="ThemeButton";themeButton.Glyph="theme";themeButton.Dock=DockStyle.Fill;themeButton.Margin=new Padding(0,8,0,8);footerActions.Controls.Add(themeButton,1,0);footer.Controls.Add(footerActions,2,0);
             root.Controls.Add(footer,0,4);
-            viewport.Controls.Add(root);Controls.Add(viewport);
+        }
+        private void WireEvents()
+        {
+            WireRefreshAnimation();
+            WireButtonEvents();
+            WireInputEvents();
+            WireDeviceSelectionEvents();
+        }
+        private void WireRefreshAnimation()
+        {
             refreshAnimation.Interval=16;
             refreshAnimation.Tick+=delegate
             {
                 double degrees=(refreshClock.ElapsedTicks-refreshAnimationStart)*360.0/Stopwatch.Frequency;
                 refreshAngle=(int)(degrees%360.0);refresh.SpinAngle=refreshAngle;refresh.Invalidate();
             };
+        }
+        private void WireButtonEvents()
+        {
             refresh.Click+=async delegate{await ScanAsync(true);};connect.Click+=async delegate{if(IsPairedSelection())await UnpairAsync();else await PairAsync();};send.Click+=async delegate{await SendAsync();};languageButton.Click+=delegate{UiText.Toggle();ApplyLanguage();languageButton.Focus();};themeButton.Click+=delegate{Theme.Toggle();ApplyTheme();themeButton.Focus();};
-            input.TextChanged+=delegate{UpdateControls();};
             rename.Click+=delegate{RenameSelected();};
+        }
+        private void WireInputEvents()
+        {
+            input.TextChanged+=delegate{UpdateControls();};
             input.KeyDown+=async delegate(object sender,KeyEventArgs e){if(e.KeyCode==Keys.Enter&&!e.Shift){e.SuppressKeyPress=true;e.Handled=true;await SendAsync();}};
+        }
+        private void WireDeviceSelectionEvents()
+        {
             devices.SelectedIndexChanged+=delegate
             {
                 if(rebuilding)return;
@@ -138,6 +183,9 @@ namespace TvText
                 // workflow, so place the caret in the text editor immediately.
                 if(ActiveSelection())input.Focus();
             };
+        }
+        private void InitializeWindowState()
+        {
             RebuildDevices(null);
             if(Connection.LastReadError.Length>0)ShowMessage(Connection.LastReadError,true);
             else ClearStatus();
@@ -156,12 +204,6 @@ namespace TvText
                 // select a TV while the initial mDNS search was running.
                 if(!closing&&!devices.Focused)input.Focus();
             };
-            HandleCreated+=delegate{Theme.ApplyTitleBar(this);};
-            FormClosed+=delegate{StopWork();};ApplyLanguage();ApplyTheme();UpdateControls();
-            // Enable DPI autoscaling only after the complete tree is attached.
-            // Enabling it before Controls.Add can scale nested table metrics
-            // once on parenting and again when this form resumes layout.
-            AutoScaleDimensions=new SizeF(96F,96F);AutoScaleMode=AutoScaleMode.Dpi;ResumeLayout(true);
         }
         private void ResetSelectionWork()
         {
@@ -453,6 +495,14 @@ namespace TvText
         }
         private static string ErrorText(Exception error,bool sending)
         {
+            NetworkFailure network=error as NetworkFailure;
+            if(network!=null)
+            {
+                if(network.Stage==NetworkStage.Connect)return UiText.T("network_connect_failed");
+                if(network.Stage==NetworkStage.Tls)return UiText.T("network_tls_failed");
+                if(network.Stage==NetworkStage.Response)return sending?UiText.T("send_no_confirmation"):UiText.T("network_response_failed");
+            }
+            if(error is ProtocolResponseFailure)return ((Exception)error).Message;
             if(error is AuthenticationException)return UiText.T("auth_error");
             if(error is EncoderFallbackException)return UiText.T("bad_character");
             if(sending&&(error is IOException||error is TimeoutException||error is SocketException))return UiText.T("send_no_confirmation");

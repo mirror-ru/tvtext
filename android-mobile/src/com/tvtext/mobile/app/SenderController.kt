@@ -133,7 +133,14 @@ class SenderController(
         scan(revalidateId = tv.id)
     }
     private fun showError(error: Exception, target: String) = message(when (error) {
-        is PinMismatch -> "need_pairing"; is InvalidReply -> "protocol_error"; is IllegalArgumentException -> "too_long"; else -> "offline"
+        is PinMismatch -> "need_pairing"; is InvalidReply -> "protocol_error"; is IllegalArgumentException -> "too_long"
+        is NetworkFailure -> when (error.stage) {
+            NetworkStage.CONNECT -> "network_connect_failed"
+            NetworkStage.TLS -> "network_tls_failed"
+            NetworkStage.DELIVERY -> "network_delivery_failed"
+            NetworkStage.RESPONSE -> "network_response_failed"
+        }
+        else -> "offline"
     }, true, target)
     private fun reply(code: Int, target: String) = if (code == 0) message(null, target = target) else message(when (code) {
         1 -> "need_pairing"; 2 -> "pair_closed"; 3 -> "bad_pin"; 4 -> "no_field"; 5 -> "disabled"; 9 -> "uncertain"; else -> "protocol_error"

@@ -31,6 +31,8 @@ data class Tv(val id: String, val name: String, val endpoint: Endpoint, val alia
 
 class PinMismatch : SSLException("Certificate or television identity changed")
 class InvalidReply : IOException("Invalid TVText response")
+enum class NetworkStage { CONNECT, TLS, DELIVERY, RESPONSE }
+class NetworkFailure(val stage: NetworkStage, cause: IOException) : IOException("TVText network operation failed", cause)
 data class Reply(val code: Int, val ready: Boolean, val message: String, val token: String, val target: String, val deviceId: String)
 
 object Wire {
@@ -108,10 +110,11 @@ object SenderClient {
         try {
             socket.use {
                 it.tcpNoDelay = true; it.soTimeout = 6000; it.enabledProtocols = arrayOf("TLSv1.2")
-                it.connect(InetSocketAddress(endpoint.host, endpoint.port), 4000)
+                try { it.connect(InetSocketAddress(endpoint.host, endpoint.port), 4000) }
+                catch (error: IOException) { throw NetworkFailure(NetworkStage.CONNECT, error) }
                 try { it.startHandshake() } catch (error: SSLException) {
                     if (pin != null && observed.isNotEmpty() && !observed.equals(pin, true)) throw PinMismatch()
-                    throw error
+                    throw NetworkFailure(NetworkStage.TLS, error)
                 }
                 return block(it, observed)
             }
@@ -122,8 +125,12 @@ object SenderClient {
         require(tv.fingerprint.matches(Regex("[a-fA-F0-9]{64}")))
         val bytes = Wire.request(command, credential, id, text)
         return session(tv.endpoint, tv.fingerprint, operation) { socket, _ ->
-            socket.outputStream.apply { write(bytes); flush() }
-            Wire.reply(socket.inputStream).also {
+            try { socket.outputStream.apply { write(bytes); flush() } }
+            catch (error: IOException) { throw NetworkFailure(NetworkStage.DELIVERY, error) }
+            val response = try { Wire.reply(socket.inputStream) }
+                catch (error: InvalidReply) { throw error }
+                catch (error: IOException) { throw NetworkFailure(NetworkStage.RESPONSE, error) }
+            response.also {
                 if (it.code in 0..1 && it.deviceId != tv.id) throw PinMismatch()
                 if (command == 1 && it.code == 0 && !it.token.matches(Regex("[a-fA-F0-9]{64}"))) throw InvalidReply()
             }

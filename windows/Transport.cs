@@ -12,6 +12,15 @@ using System.Threading.Tasks;
 
 namespace TvText
 {
+    internal enum NetworkStage { Connect, Tls, Response }
+    internal sealed class NetworkFailure : IOException
+    {
+        internal readonly NetworkStage Stage;
+        internal NetworkFailure(NetworkStage stage, Exception cause) : base("TVText network stage failed", cause) { Stage=stage; }
+    }
+    internal sealed class ProtocolResponseFailure : IOException
+    { internal ProtocolResponseFailure(string message) : base(message) { } }
+
     public sealed class Reply
     {
         public int Code;
@@ -70,12 +79,16 @@ namespace TvText
                 try
                 {
                     tcp.NoDelay=true;
-                    IAsyncResult pending = tcp.BeginConnect(host, port, null, null);
-                    using (WaitHandle wait = pending.AsyncWaitHandle)
+                    try
                     {
-                        if (!wait.WaitOne(4000)) throw new TimeoutException(UiText.T("transport_no_response"));
-                        tcp.EndConnect(pending);
+                        IAsyncResult pending = tcp.BeginConnect(host, port, null, null);
+                        using (WaitHandle wait = pending.AsyncWaitHandle)
+                        {
+                            if (!wait.WaitOne(4000)) throw new TimeoutException(UiText.T("transport_no_response"));
+                            tcp.EndConnect(pending);
+                        }
                     }
+                    catch (SocketException error) { throw new NetworkFailure(NetworkStage.Connect,error); }
                     tcp.ReceiveTimeout=6000;tcp.SendTimeout=6000;
                     return action(tcp);
                 }
@@ -101,7 +114,8 @@ namespace TvText
             }))
             {
                 tls.ReadTimeout = 6000; tls.WriteTimeout = 6000;
-                tls.AuthenticateAsClient("TVText", null, SslProtocols.Tls12, false);
+                try { tls.AuthenticateAsClient("TVText", null, SslProtocols.Tls12, false); }
+                catch(AuthenticationException error) { throw new NetworkFailure(NetworkStage.Tls,error); }
             }
             return fingerprint;
             });
@@ -119,31 +133,42 @@ namespace TvText
             {
                 tls.ReadTimeout = 6000; tls.WriteTimeout = 6000;
                 try{tls.AuthenticateAsClient("TVText", null, SslProtocols.Tls12, false);}
-                catch(AuthenticationException e){if(pinRejected)throw;throw new IOException(UiText.T("transport_connect"),e);}
+                catch(AuthenticationException e){if(pinRejected)throw;throw new NetworkFailure(NetworkStage.Tls,e);}
                 using (MemoryStream payload = new MemoryStream())
                 {
-                    WriteInt(payload,0);
-                    payload.WriteByte(1); payload.WriteByte((byte)command);
-                    WriteString(payload, credential); WriteString(payload, id); WriteString(payload, text);
-                    int size=checked((int)payload.Length-4);payload.Position=0;WriteInt(payload,size);
-                    byte[] bytes = payload.ToArray();tls.Write(bytes, 0, bytes.Length); tls.Flush();
+                    byte[] bytes = EncodeRequest(command, credential, id, text);
+                    tls.Write(bytes, 0, bytes.Length); tls.Flush();
                 }
-                return ReadReply(tls);
+                try{return ReadReply(tls);}
+                catch(ProtocolResponseFailure){throw;}
+                catch(IOException error){throw new NetworkFailure(NetworkStage.Response,error);}
             }
             });
+        }
+        internal static byte[] EncodeRequest(int command, string credential, string id, string text)
+        {
+            if (command < 1 || command > 4) throw new ArgumentOutOfRangeException("command");
+            using (MemoryStream payload = new MemoryStream())
+            {
+                WriteInt(payload, 0);
+                payload.WriteByte(1); payload.WriteByte((byte)command);
+                WriteString(payload, credential); WriteString(payload, id); WriteString(payload, text);
+                int size = checked((int)payload.Length - 4); payload.Position = 0; WriteInt(payload, size);
+                return payload.ToArray();
+            }
         }
         internal static Reply ReadReply(Stream stream)
         {
                 int size = ReadInt(stream);
-                if (size < 3 || size > 65536) throw new IOException(UiText.T("transport_bad_reply"));
+                if (size < 3 || size > 65536) throw new ProtocolResponseFailure(UiText.T("transport_bad_reply"));
                 using (MemoryStream response = new MemoryStream(ReadExact(stream, size)))
                 {
-                    if (response.ReadByte() != 1) throw new IOException(UiText.T("transport_incompatible"));
+                    if (response.ReadByte() != 1) throw new ProtocolResponseFailure(UiText.T("transport_incompatible"));
                     Reply reply = new Reply();reply.Code=response.ReadByte();int ready=response.ReadByte();
-                    if(ready<0||ready>1||reply.Code<0||reply.Code>6&&reply.Code!=9)throw new IOException(UiText.T("transport_bad_reply"));
+                    if(ready<0||ready>1||reply.Code<0||reply.Code>6&&reply.Code!=9)throw new ProtocolResponseFailure(UiText.T("transport_bad_reply"));
                     reply.Ready=ready==1;
                     reply.Message = ReadString(response, 4096); reply.Token = ReadString(response, 256); reply.Target = ReadString(response, 1024); reply.DeviceId = ReadString(response, 128);
-                    if (response.Position != response.Length) throw new IOException(UiText.T("transport_bad_reply"));
+                    if (response.Position != response.Length) throw new ProtocolResponseFailure(UiText.T("transport_bad_reply"));
                     return reply;
                 }
         }
@@ -162,7 +187,7 @@ namespace TvText
         private static void WriteString(Stream stream, string value)
         { byte[] bytes = Utf8.GetBytes(value); WriteInt(stream, bytes.Length); stream.Write(bytes, 0, bytes.Length); }
         private static string ReadString(Stream stream, int limit)
-        { int size = ReadInt(stream); if (size < 0 || size > limit) throw new IOException(UiText.T("bad_reply_size")); return Utf8.GetString(ReadExact(stream, size)); }
+        { int size = ReadInt(stream); if (size < 0 || size > limit) throw new ProtocolResponseFailure(UiText.T("bad_reply_size")); try{return Utf8.GetString(ReadExact(stream, size));}catch(DecoderFallbackException){throw new ProtocolResponseFailure(UiText.T("transport_bad_reply"));} }
     }
 
     public sealed class Connection
