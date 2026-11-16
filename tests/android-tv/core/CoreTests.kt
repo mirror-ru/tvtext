@@ -20,6 +20,11 @@ object CoreTests {
         Protocol.writeResponse(response, Protocol.Response(0, "OK", true, "t", "app", ""))
         check(response.toByteArray().contentEquals(bytes("response")))
         check(Protocol.readResponse(ByteArrayInputStream(bytes("response"))) == Protocol.Response(0, "OK", true, "t", "app", ""))
+        fun rejects(label: String, body: () -> Unit) { check(runCatching(body).isFailure) { "TV parser accepted $label" } }
+        for (name in listOf("request_invalid_utf8", "request_trailing_bytes", "request_truncated_body", "frame_oversized", "frame_negative"))
+            rejects(name) { Protocol.readRequest(ByteArrayInputStream(bytes(name))) }
+        for (name in listOf("response_invalid_utf8", "response_trailing_bytes", "response_truncated_body", "frame_oversized", "frame_negative"))
+            rejects(name) { Protocol.readResponse(ByteArrayInputStream(bytes(name))) }
     }
 
     @JvmStatic fun main(args: Array<String>) {

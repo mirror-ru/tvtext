@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
@@ -14,7 +15,7 @@ internal static class ClientReliabilityTests
     private static void Check(bool value,string message){if(!value)throw new Exception(message);}
     internal static void Run(string folder)
     {
-        Endpoints();Frames();ProtocolVectors(folder);Profiles(folder);Timeouts();DiscoveryCancellation();
+        Endpoints();Frames(folder);ProtocolVectors(folder);Profiles(folder);Timeouts();DiscoveryCancellation();
     }
     private static byte[] Hex(string value)
     {byte[] bytes=new byte[value.Length/2];for(int i=0;i<bytes.Length;i++)bytes[i]=Convert.ToByte(value.Substring(i*2,2),16);return bytes;}
@@ -70,7 +71,7 @@ internal static class ClientReliabilityTests
     }
     private static byte[] Frame(byte[] body)
     {byte[] bytes=new byte[body.Length+4];int n=body.Length;bytes[0]=(byte)(n>>24);bytes[1]=(byte)(n>>16);bytes[2]=(byte)(n>>8);bytes[3]=(byte)n;Buffer.BlockCopy(body,0,bytes,4,n);return bytes;}
-    private static void Frames()
+    private static void Frames(string folder)
     {
         string exactLimit=new string('\u4e2d',Client.MaxText/3)+"é";
         Check(Encoding.UTF8.GetByteCount(exactLimit)==Client.MaxText,"UTF-8 boundary fixture is exact");
@@ -91,6 +92,11 @@ internal static class ClientReliabilityTests
         }
         foreach(byte[] invalid in new[]{new byte[]{255,255,255,255},new byte[]{0,0,0,19,1,0},Frame(new byte[]{1,0,0,255,255,255,255}),Frame(new byte[20])})
         {bool rejected=false;try{Client.ReadReply(new MemoryStream(invalid));}catch(IOException){rejected=true;}Check(rejected,"malformed frame must fail");}
+        var vectors=new Dictionary<string,string>(StringComparer.Ordinal);
+        foreach(string line in File.ReadAllLines(Path.Combine(folder,"protocol-v1-vectors.txt")))
+            if(line.Length>0&&line[0]!='#'){int split=line.IndexOf('=');if(split>0)vectors[line.Substring(0,split).Trim()]=line.Substring(split+1).Trim();}
+        foreach(string name in new[]{"response_invalid_utf8","response_trailing_bytes","response_truncated_body","frame_oversized","frame_negative"})
+        {bool rejected=false;try{Client.ReadReply(new MemoryStream(Hex(vectors[name])));}catch(IOException){rejected=true;}Check(rejected,"shared malformed response must fail: "+name);}
         bool badUnicode=false;try{Client.Exchange("127.0.0.1:1",new string('A',64),3,"token",Guid.NewGuid().ToString(),"\ud800");}catch(EncoderFallbackException){badUnicode=true;}Check(badUnicode,"invalid UTF-16 rejected before connection");
         bool wrongId=false;try{Client.VerifyIdentity(new Reply{Code=0,DeviceId=Guid.NewGuid().ToString()},new Connection{DeviceId=DiscoveryTests.FixtureId});}catch(System.Security.Authentication.AuthenticationException){wrongId=true;}Check(wrongId,"reply identity must match saved TV");
         System.Reflection.MethodInfo errorText=typeof(MainForm).GetMethod("ErrorText",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic);

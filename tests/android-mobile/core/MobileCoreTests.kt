@@ -15,6 +15,11 @@ object MobileCoreTests {
         fun vector(name: String) = vectors[name]!!.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
         check(Wire.request(3, "k", "", "AЖ😀\n").contentEquals(vector("request")))
         check(Wire.reply(ByteArrayInputStream(vector("response"))) == Reply(0, true, "OK", "t", "app", ""))
+        fun rejects(label: String, block: () -> Unit) { check(runCatching(block).isFailure) { "Mobile parser accepted $label" } }
+        for (name in listOf("request_invalid_utf8", "request_trailing_bytes", "request_truncated_body", "frame_oversized", "frame_negative"))
+            rejects(name) { Protocol.readRequest(ByteArrayInputStream(vector(name))) }
+        for (name in listOf("response_invalid_utf8", "response_trailing_bytes", "response_truncated_body", "frame_oversized", "frame_negative"))
+            rejects(name) { Wire.reply(ByteArrayInputStream(vector(name))) }
         ConnectionCatalogTests.run()
         SenderControllerTests.run()
         val sample="Привет с телефона 😀 中文 & %\nВторая строка"
