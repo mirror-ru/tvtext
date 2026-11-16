@@ -79,7 +79,7 @@ class MobileDeviceTests : Instrumentation() {
         val screenHeight=maxOf(activity.window.decorView.rootView.height,activity.resources.displayMetrics.heightPixels)
         return screenHeight-frame.bottom>screenHeight/6
     }
-    private fun checkInputVisibleWithKeyboard() {
+    private fun checkSendVisibleWithKeyboard() {
         ui {
             input().requestFocus()
             activity.getSystemService(InputMethodManager::class.java).showSoftInput(input(),InputMethodManager.SHOW_IMPLICIT)
@@ -87,12 +87,10 @@ class MobileDeviceTests : Instrumentation() {
         waitUntil {
             if(!imeVisible())return@waitUntil false
             val frame=Rect();activity.window.decorView.getWindowVisibleDisplayFrame(frame)
-            val location=IntArray(2);input().getLocationOnScreen(location)
-            val cardLocation=IntArray(2);view("text-card").getLocationOnScreen(cardLocation)
-            location[1]>=frame.top&&location[1]+input().height<=frame.bottom&&
-                cardLocation[1]>=frame.top&&cardLocation[1]+view("text-card").height<=frame.bottom
+            val button=view("send");val location=IntArray(2);button.getLocationOnScreen(location)
+            button.isEnabled&&location[1]>=frame.top&&location[1]+button.height<=frame.bottom
         }
-        ui { check(imeVisible()) }
+        ui { check(imeVisible()&&input().hasFocus()&&view("send").isEnabled) }
         ui { activity.getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(input().windowToken,0) }
         waitUntil { !imeVisible() }
     }
@@ -257,7 +255,7 @@ class MobileDeviceTests : Instrumentation() {
                         motion(row,MotionEvent.ACTION_CANCEL,row.width/2f,row.height/2f,start)
                     }
                     check(field("selectedId")==a.id && input().hasFocus() && input().text.toString()=="Черновик для первого ТВ") { "Cancelled touch cannot switch the recipient or editor focus" }
-                    checkInputVisibleWithKeyboard()
+                    checkSendVisibleWithKeyboard()
                     click("tv-${b.id}")
                     check(field("selectedId")==b.id && !input().hasFocus()) { "First tap selects a paired TV without focusing the editor" }
                     ui {

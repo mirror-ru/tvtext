@@ -8,13 +8,11 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
-import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
@@ -24,7 +22,6 @@ import android.text.TextWatcher
 import android.view.*
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import android.view.WindowInsets
 import android.view.animation.LinearInterpolator
 import android.widget.*
 import java.util.Locale
@@ -66,8 +63,7 @@ class MainActivity : Activity() {
     private lateinit var languageButton: TextView
     private lateinit var themeButton: View
     private lateinit var textCard: LinearLayout
-    private var imeLayoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
-    private var imeWasVisible = false
+    private var keyboardViewport: KeyboardViewport? = null
     private val palette get() = Palette(darkMode)
     private val ink get() = palette.ink
     private val muted get() = palette.muted
@@ -117,9 +113,8 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         controller.destroy()
         refreshAnimation?.cancel()
-        imeLayoutListener?.let { window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(it) }
-        imeLayoutListener = null
-        imeWasVisible = false
+        keyboardViewport?.close()
+        keyboardViewport = null
         dialogs.dismiss()
         main.removeCallbacksAndMessages(null)
         super.onDestroy()
@@ -189,9 +184,8 @@ class MainActivity : Activity() {
         addView(view, LinearLayout.LayoutParams(width, height).apply { topMargin = dp(top) })
     }
     private fun buildUi(draft: String) {
-        imeLayoutListener?.let { window.decorView.viewTreeObserver.removeOnGlobalLayoutListener(it) }
-        imeLayoutListener = null
-        imeWasVisible = false
+        keyboardViewport?.close()
+        keyboardViewport = null
         refreshAnimation?.cancel();refreshAnimation=null;lastRows=null
         setTheme(resources.getIdentifier(if(darkMode) "AppTheme.Dark" else "AppTheme", "style", packageName))
         val config = Configuration(resources.configuration).apply { setLocale(Locale(language)) }
@@ -212,7 +206,7 @@ class MainActivity : Activity() {
         buildComposer(workspace,wide,draft)
         renderDevices()
         updateRefreshAnimation()
-        installImeLayoutListener()
+        keyboardViewport = KeyboardViewport(this, page, input, send, { dp(it) }).also { it.start() }
     }
     private fun buildHeader(content: LinearLayout) {
         val header = FrameLayout(this)
@@ -303,40 +297,6 @@ class MainActivity : Activity() {
         }
         footer.addView(languageButton,LinearLayout.LayoutParams(dp(54),dp(48)))
         footer.addView(themeButton,LinearLayout.LayoutParams(dp(48),dp(48)).apply { leftMargin=dp(8) }); composer.add(footer,top=10)
-    }
-    private fun installImeLayoutListener() {
-        val decor=window.decorView
-        val listener=ViewTreeObserver.OnGlobalLayoutListener {
-            val visible=this::input.isInitialized&&input.hasFocus()&&isImeVisible()
-            if(visible&&!imeWasVisible) {
-                imeWasVisible=true
-                page.postDelayed({ revealTextCard() },220)
-            } else if(!visible) imeWasVisible=false
-        }
-        imeLayoutListener=listener
-        decor.viewTreeObserver.addOnGlobalLayoutListener(listener)
-    }
-    private fun isImeVisible(): Boolean {
-        val decor=window.decorView
-        return if(Build.VERSION.SDK_INT>=30) decor.rootWindowInsets?.isVisible(WindowInsets.Type.ime())==true
-        else {
-            val visibleFrame=Rect();decor.getWindowVisibleDisplayFrame(visibleFrame)
-            val screenHeight=maxOf(decor.rootView.height,resources.displayMetrics.heightPixels)
-            screenHeight-visibleFrame.bottom>screenHeight/6
-        }
-    }
-    private fun revealTextCard() {
-        if(destroyed||!this::input.isInitialized||!input.hasFocus()||!isImeVisible())return
-        val visibleFrame=Rect();window.decorView.getWindowVisibleDisplayFrame(visibleFrame)
-        val location=IntArray(2);textCard.getLocationOnScreen(location)
-        val top=location[1];val bottom=top+textCard.height
-        val margin=dp(10)
-        val scrollBy=when {
-            bottom>visibleFrame.bottom-margin -> bottom-visibleFrame.bottom+margin
-            top<visibleFrame.top+margin -> top-visibleFrame.top-margin
-            else -> 0
-        }
-        if(scrollBy!=0)page.scrollBy(0,scrollBy)
     }
     private fun choices(): List<Tv> = catalog.choices()
     private fun selected() = choices().firstOrNull { it.id == selectedId }

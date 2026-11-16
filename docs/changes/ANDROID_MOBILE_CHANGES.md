@@ -1,9 +1,14 @@
 # Android phone/tablet changes
 
-## 16 November 2026 — keep the complete input card visible with the keyboard
+## 16 November 2026 — keep the send action visible with the keyboard
 
-- When the main text editor opens the IME, the screen now scrolls just enough to reveal the full text card above it. The TV list, device actions, and language/theme controls keep their normal layout; nothing is hidden or collapsed.
-- Added a device instrumentation check that opens the keyboard and waits until both the editor and its full card are within the visible window area.
+- When the main text editor opens the IME, the screen scrolls as soon as the first resized layout arrives and corrects the position if the keyboard continues resizing. This removes the visible pause before the send button appears. The editor keeps focus for typing; no additional outline or animation is added to the button.
+- The device instrumentation check now verifies that the enabled send button is fully visible while the editor retains focus.
+- Moved IME visibility, resize handling, scroll positioning and listener cleanup into `KeyboardViewport`, so the Activity closes the helper on rebuild and destruction.
+
+## 16 November 2026 — protocol boundary checks (local)
+
+- Added exact 32 KiB UTF-8 request checks and over-limit credential, ID and payload rejection cases to the mobile and receiver protocol suites. The mobile TLS fixture also verifies that the exact-limit draft reaches the receiver intact.
 
 ## 16 November 2026 — transport diagnostics and protocol vectors (local)
 
