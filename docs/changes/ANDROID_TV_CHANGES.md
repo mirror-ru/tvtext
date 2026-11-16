@@ -1,5 +1,13 @@
 # Android TV changes
 
+## 16 November 2026 — re-review of main-screen components (local)
+
+- Matched the pairing timer's `Long` type and reset the devices button's accessibility description when special accessibility is off. The complete application build and Windows/TV core regression suite passed; device UI instrumentation was unavailable because the local ADB server could not start.
+
+## 16 November 2026 — extract main-screen actions (local)
+
+- Moved action/footer buttons and their visibility, badge, labels, and theme icon state into `ReceiverActionsPanel`; moved receiver identity and pairing-code cards into `ReceiverIdentityPanel`. `MainActivity` retains lifecycle, receiver state resolution, focus restoration, and delegates actions through callbacks.
+
 ## 16 November 2026 — isolate receiver status-card rendering (local)
 
 - Moved status-card view construction and tone/compact-state styling into `ReceiverStatusCard`. The Activity still resolves receiver state and handles lifecycle, while the component owns only its card views.

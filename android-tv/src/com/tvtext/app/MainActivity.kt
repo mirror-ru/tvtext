@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Typeface
@@ -30,28 +29,16 @@ class MainActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var runtime: BridgeRuntime
     private lateinit var statusCard: ReceiverStatusCard
-    private lateinit var deviceCard: LinearLayout
-    private lateinit var deviceCaption: TextView
-    private lateinit var device: TextView
-    private lateinit var pairingCard: LinearLayout
-    private lateinit var pairCode: TextView
-    private lateinit var pairTime: TextView
-    private lateinit var fingerprint: TextView
-    private lateinit var pairButton: Button
-    private lateinit var languageButton: Button
-    private lateinit var themeButton: ImageButton
-    private lateinit var computersButton: Button
-    private lateinit var keyboardButton: Button
     private val widgets by lazy { TvWidgets(this) }
+    private lateinit var identityPanel: ReceiverIdentityPanel
     private lateinit var dialogs: ReceiverDialogs
+    private lateinit var actionsPanel: ReceiverActionsPanel
     private var initialFocus: View? = null
-    private var connectionBadgeCount = -1
     private val ink get() = TvTheme.ink
     private val muted get() = TvTheme.muted
     private val accent get() = TvTheme.accent
     private val green get() = TvTheme.green
     private val amber get() = TvTheme.amber
-    private val red get() = TvTheme.alert
     private val refresh = object : Runnable {
         override fun run() {
             update()
@@ -83,7 +70,29 @@ class MainActivity : Activity() {
         val restoreThemeFocus=preferences.getBoolean("theme-focus",false)
         preferences.edit().remove("language-focus").remove("theme-focus").apply()
         runtime = BridgeRuntime.get(this)
-        dialogs = ReceiverDialogs(this,runtime,{ update() },{ keyboardTestOpen=it },{ keyboardButton.requestFocus() })
+        identityPanel = ReceiverIdentityPanel(widgets)
+        actionsPanel = ReceiverActionsPanel(
+            context = this,
+            widgets = widgets,
+            onComputersClick = {
+                if (accessibilityEnabled()) dialogs.showComputers()
+                else open(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            },
+            onPairClick = ::togglePairing,
+            onKeyboardTestClick = { dialogs.showKeyboardTest() },
+            onLanguageClick = ::toggleLanguage,
+            onThemeClick = {
+                preferences.edit().putBoolean("dark-mode", !TvTheme.dark).putBoolean("theme-focus", true).apply()
+                recreate()
+            },
+        )
+        dialogs = ReceiverDialogs(
+            this,
+            runtime,
+            { update() },
+            { keyboardTestOpen = it },
+            { actionsPanel.keyboardButton.requestFocus() },
+        )
         val scroll = ScrollView(this).apply {
             isFillViewport = true
             tag="tv-page";setBackgroundColor(TvTheme.canvas)
@@ -110,11 +119,11 @@ class MainActivity : Activity() {
         }
         update()
         initialFocus=when {
-            restoreThemeFocus -> themeButton
-            restoreLanguageFocus -> languageButton
-            !accessibilityEnabled() -> computersButton
-            pairButton.visibility==View.VISIBLE&&pairButton.isEnabled -> pairButton
-            else -> computersButton
+            restoreThemeFocus -> actionsPanel.themeButton
+            restoreLanguageFocus -> actionsPanel.languageButton
+            !accessibilityEnabled() -> actionsPanel.computersButton
+            actionsPanel.pairButton.visibility == View.VISIBLE && actionsPanel.pairButton.isEnabled -> actionsPanel.pairButton
+            else -> actionsPanel.computersButton
         }
         initialFocus?.requestFocus()
     }
@@ -138,90 +147,14 @@ class MainActivity : Activity() {
         panel.addView(statusCard.view, full().apply { topMargin = dp(16) })
     }
     private fun buildDeviceCard(panel: LinearLayout) {
-        deviceCard = row().apply {
-            gravity = Gravity.CENTER_VERTICAL
-            background = shape(TvTheme.inset, 16).apply {
-                setStroke(dp(1), TvTheme.border)
-            }
-            setPadding(dp(12), dp(10), dp(14), dp(10))
-        }
-        deviceCard.addView(label("TV", 12, accent).apply {
-            gravity = Gravity.CENTER
-            typeface = Typeface.create("sans-serif-black", Typeface.NORMAL)
-            background = shape(TvTheme.icon, 10)
-        }, LinearLayout.LayoutParams(dp(34), dp(34)))
-        val deviceText = column()
-        deviceCaption = label("", 11, muted).apply {
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        }
-        deviceText.addView(deviceCaption, full())
-        device = label("", 15, ink).apply {
-            maxLines = 2
-            ellipsize = android.text.TextUtils.TruncateAt.END
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        }
-        deviceText.addView(device, full().apply { topMargin = dp(3) })
-        deviceCard.addView(deviceText, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(11) })
-        panel.addView(deviceCard, full().apply { topMargin = dp(14) })
+        identityPanel.addDeviceCard(panel)
     }
+
     private fun buildPairingCard(panel: LinearLayout) {
-        pairingCard=column().apply {
-            tag="pairing-card";setPadding(dp(14),dp(10),dp(14),dp(10))
-            background=shape(TvTheme.inset,16).apply { setStroke(dp(1),TvTheme.border) }
-        }
-        pairCode = label("", 40, ink).apply {
-            gravity = Gravity.CENTER
-            typeface = Typeface.create("monospace", Typeface.NORMAL)
-            letterSpacing = .08f
-        }
-        pairingCard.addView(pairCode, full())
-        pairTime = label("", 12, accent).apply { gravity = Gravity.CENTER }
-        pairingCard.addView(pairTime, full().apply { topMargin = dp(3) })
-        fingerprint = label("", 12, muted).apply { gravity = Gravity.CENTER; typeface = Typeface.MONOSPACE }
-        pairingCard.addView(fingerprint, full().apply { topMargin = dp(6) })
-        panel.addView(pairingCard,full().apply { topMargin=dp(12) })
+        identityPanel.addPairingCard(panel)
     }
     private fun buildActionsAndFooter(panel: LinearLayout,preferences: android.content.SharedPreferences) {
-        buildConnectionActions(panel)
-        panel.addView(View(this).apply { setBackgroundColor(TvTheme.border) }, full(dp(1)).apply { topMargin = dp(16) })
-        buildFooter(panel,preferences)
-    }
-    private fun buildConnectionActions(panel: LinearLayout) {
-        val actions = row().apply { isBaselineAligned = false }
-        computersButton = button(tr("connected_pcs")) {
-            if (accessibilityEnabled()) dialogs.showComputers()
-            else open(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-        }
-        actions.addView(computersButton, LinearLayout.LayoutParams(0, dp(46), 1f))
-        pairButton = button(tr("connect_pc"), true) {
-            if (runtime.engine.pairingPin().isNotEmpty()) runtime.engine.closePairing()
-            else if (runtime.service != null && runtime.listening()) runtime.engine.openPairing()
-            update()
-            scheduleRefresh()
-        }
-        actions.addView(pairButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply { marginStart = dp(12) })
-        panel.addView(actions, full().apply { topMargin = dp(14) })
-    }
-    private fun buildFooter(panel: LinearLayout,preferences: android.content.SharedPreferences) {
-        val footer = row().apply { gravity = Gravity.CENTER_VERTICAL }
-        keyboardButton=button(tr("keyboard_test")) { dialogs.showKeyboardTest() }.apply { tag="keyboard-test" }
-        footer.addView(keyboardButton,LinearLayout.LayoutParams(-2,dp(40)))
-        footer.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        languageButton = button(languageCode()) { toggleLanguage() }
-        footer.addView(languageButton, LinearLayout.LayoutParams(dp(58), dp(40)))
-        themeButton=ImageButton(this).apply {
-            tag="theme";contentDescription=tr(if(TvTheme.dark)"theme_light" else "theme_dark");tooltipText=contentDescription
-            val icon=resources.getIdentifier(if(TvTheme.dark)"ic_sun" else "ic_moon","drawable",packageName)
-            setImageResource(icon);imageTintList=ColorStateList.valueOf(accent);scaleType=ImageView.ScaleType.CENTER
-            setPadding(dp(8),dp(8),dp(8),dp(8));minimumWidth=0;minimumHeight=0
-            background=focusBackground(TvTheme.button);stateListAnimator=null
-            setOnClickListener {
-                preferences.edit().putBoolean("dark-mode",!TvTheme.dark).putBoolean("theme-focus",true).apply()
-                recreate()
-            }
-        }
-        footer.addView(themeButton,LinearLayout.LayoutParams(dp(44),dp(40)).apply { marginStart=dp(10) })
-        panel.addView(footer, full().apply { topMargin = dp(10) })
+        actionsPanel.addTo(panel, preferences)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -237,7 +170,6 @@ class MainActivity : Activity() {
         val id = resources.getIdentifier(name, "string", packageName)
         return if (args.isEmpty()) getString(id) else getString(id, *args)
     }
-    private fun languageCode() = if (currentLanguage() == "en") "EN" else "RU"
     private fun currentLanguage() = getSharedPreferences("ui", MODE_PRIVATE).getString("language", "ru") ?: "ru"
     private fun toggleLanguage() {
         val next = if (currentLanguage() == "ru") "en" else "ru"
@@ -250,18 +182,11 @@ class MainActivity : Activity() {
     private fun row() = widgets.row()
     private fun label(value: String, size: Int, color: Int) = widgets.label(value,size,color)
     private fun shape(color: Int, radius: Int, stroke: Int = Color.TRANSPARENT) = widgets.shape(color,radius,stroke)
-    private fun focusBackground(color: Int, primary: Boolean = false) = widgets.focusBackground(color,primary)
     private fun card() = column().apply {
         tag="tv-card";background = shape(TvTheme.surface, 22).apply { setStroke(dp(1), TvTheme.border) }
         setPadding(dp(26), dp(22), dp(26), dp(22))
     }
-    private fun button(value: String, primary: Boolean = false, action: () -> Unit) = widgets.button(value,primary,action)
     private fun toast(message: String) { Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
-    private fun TextView.show(value: String) { if (text.toString() != value) text = value }
-    private fun View.showIf(value: Boolean) {
-        val target = if (value) View.VISIBLE else View.GONE
-        if (visibility != target) visibility = target
-    }
     private fun accessibilityEnabled(): Boolean = try {
         val component = ComponentName(this, TextService::class.java)
         Settings.Secure.getInt(contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED, 0) == 1 &&
@@ -271,6 +196,12 @@ class MainActivity : Activity() {
     private fun open(action: String) {
         try { startActivity(Intent(action)) }
         catch (_: Exception) { toast(tr("open_settings_failed")) }
+    }
+    private fun togglePairing() {
+        if (runtime.engine.pairingPin().isNotEmpty()) runtime.engine.closePairing()
+        else if (runtime.service != null && runtime.listening()) runtime.engine.openPairing()
+        update()
+        scheduleRefresh()
     }
     private fun scheduleRefresh() { handler.removeCallbacks(refresh); handler.post(refresh) }
     override fun onResume() { super.onResume(); scheduleRefresh() }
@@ -293,49 +224,26 @@ class MainActivity : Activity() {
         val title = tr(screen.titleKey)
         val message = tr(screen.messageKey)
         statusCard.render(screen,title,message,color,accessibilityOff||error.isNotEmpty())
-        renderConnectionActions(accessibilityOff,hasPin,accepting)
+        actionsPanel.render(
+            accessibilityOff = accessibilityOff,
+            hasPin = hasPin,
+            accepting = accepting,
+            connectionCount = runtime.engine.pairedTokens().size,
+            languageCode = if (currentLanguage() == "en") "EN" else "RU",
+        )
         renderDeviceIdentity(accepting)
-        renderPairing(pin,hasPin)
-    }
-    private fun renderConnectionActions(accessibilityOff: Boolean,hasPin: Boolean,accepting: Boolean) {
-        languageButton.show(languageCode())
-        computersButton.show(if (accessibilityOff) tr("open_accessibility") else tr("connected_pcs"))
-        val connectionCount = runtime.engine.pairedTokens().size
-        if (accessibilityOff) {
-            computersButton.setCompoundDrawables(null, null, null, null)
-            connectionBadgeCount = -1
-        } else if (connectionBadgeCount != connectionCount) {
-            computersButton.setCompoundDrawablePadding(dp(8))
-            computersButton.setCompoundDrawablesWithIntrinsicBounds(null, null, ConnectionCountBadge(this,connectionCount,accent), null)
-            computersButton.contentDescription = tr("connected_pcs") + ": " + connectionCount
-            connectionBadgeCount = connectionCount
-        }
-        keyboardButton.showIf(!accessibilityOff && !hasPin)
-        pairButton.show(if (hasPin) tr("cancel_connection") else tr("connect_pc"))
-        computersButton.showIf(!hasPin)
-        val pairLayout=pairButton.layoutParams as LinearLayout.LayoutParams
-        val pairMargin=if(hasPin)0 else dp(12)
-        if(pairLayout.marginStart!=pairMargin) { pairLayout.marginStart=pairMargin;pairButton.layoutParams=pairLayout }
-        if (!accepting && pairButton.hasFocus() && !hasPin) computersButton.requestFocus()
-        pairButton.showIf(!accessibilityOff)
-        pairButton.isEnabled = accepting || hasPin
+        renderPairing(pin, hasPin)
     }
     private fun renderDeviceIdentity(accepting: Boolean) {
         val discovery = if (!accepting) "" else if (runtime.advertiser.warning.isNotEmpty())
             tr("discovery_unavailable")
             else runtime.advertiser.name
-        val hasDiscoveryMessage = discovery.isNotEmpty()
-        deviceCaption.show(if (runtime.advertiser.warning.isNotEmpty()) tr("discovery_caption") else tr("tv_name_caption"))
-        device.show(discovery)
-        deviceCard.showIf(hasDiscoveryMessage)
+        val caption = if (runtime.advertiser.warning.isNotEmpty()) tr("discovery_caption") else tr("tv_name_caption")
+        identityPanel.renderDeviceIdentity(caption, discovery)
     }
-    private fun renderPairing(pin: String,hasPin: Boolean) {
-        pairCode.show(if (hasPin) pin.chunked(4).joinToString(" ") else "")
-        if (hasPin) {
-            val seconds = runtime.engine.pairingSeconds().coerceAtLeast(0)
-            pairTime.show(tr("pair_code_time_format", seconds / 60, seconds % 60))
-            fingerprint.show(tr("fingerprint_format", Identity.shortFingerprint(runtime.fingerprint)))
-        }
-        pairingCard.showIf(hasPin)
+    private fun renderPairing(pin: String, hasPin: Boolean) {
+        val seconds = if (hasPin) runtime.engine.pairingSeconds().coerceAtLeast(0L) else 0L
+        val fingerprint = if (hasPin) Identity.shortFingerprint(runtime.fingerprint) else ""
+        identityPanel.renderPairing(pin, seconds, fingerprint)
     }
 }
