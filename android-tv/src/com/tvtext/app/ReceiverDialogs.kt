@@ -40,18 +40,19 @@ class ReceiverDialogs(context: Context, private val runtime: BridgeRuntime,
             content.addView(list.scroll,full(list.height).apply { topMargin=dp(20) })
             val footer=connectionsFooter(list.deleteActions) { listDialog?.dismiss() }
             content.addView(footer,full().apply { topMargin=dp(20) })
-            showConnectionsDialog(content,list.deleteActions.firstOrNull() ?: footer)
+            listDialog = showConnectionsDialog(content,list.deleteActions.firstOrNull() ?: footer)
             return
         }
         val footer=connectionsFooter(emptyList()) { listDialog?.dismiss() }
         content.addView(footer,full().apply { topMargin=dp(20) })
-        showConnectionsDialog(content,footer)
+        listDialog = showConnectionsDialog(content,footer)
     }
-    private fun showConnectionsDialog(content: View,initialFocus: View) {
+    private fun showConnectionsDialog(content: View,initialFocus: View): AlertDialog {
         val current=showDialog(AlertDialog.Builder(context),customView=content)
         val width=minOf(520,resources.configuration.screenWidthDp-64)
         current.window?.setLayout(dp(width),WindowManager.LayoutParams.WRAP_CONTENT)
         content.post { initialFocus.requestFocus() }
+        return current
     }
     private data class ConnectionRows(val scroll: ScrollView,val deleteActions: List<View>,val height: Int)
     private fun connectionsHeader(count: Int)=row().apply {
