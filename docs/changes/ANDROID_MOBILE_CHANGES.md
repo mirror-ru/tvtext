@@ -1,5 +1,14 @@
 # Android phone/tablet changes
 
+## 16 November 2026 — re-review of screen extraction (local)
+
+- Fixed component visibility and callback ownership found by compiling the complete app. Kept the initial content focus request after the screen is attached, matching the previous Activity behavior.
+- Full application build and mobile JVM/TLS tests passed. Device UI instrumentation was unavailable because the local ADB server could not start.
+
+## 16 November 2026 — extract the message composer (local)
+
+- Moved home-screen layout and device-card construction into `SenderScreen`, and moved text editing, Enter-to-send, the send button, and language/theme footer into `SenderComposer`. Shared button/card styling now lives in `SenderWidgets`. `MainActivity` retains lifecycle, discovery, pairing, device selection, and send orchestration.
+
 ## 16 November 2026 — isolate the mobile TV list panel (local)
 
 - Moved TV row creation, selection visuals, empty-state rendering and list scrolling into `DeviceListPanel`. Activity behavior stays behind a small selection callback, and the list retains its test tags and scroll position when the language or theme rebuilds the screen.

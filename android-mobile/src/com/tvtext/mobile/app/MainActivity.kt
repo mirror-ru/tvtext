@@ -5,25 +5,14 @@ import android.app.Activity
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.content.Context
-import android.content.res.ColorStateList
 import android.content.res.Configuration
-import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.RippleDrawable
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.text.Editable
-import android.text.InputFilter
-import android.text.InputType
-import android.text.TextWatcher
-import android.view.*
-import android.view.inputmethod.EditorInfo
+import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.view.animation.LinearInterpolator
-import android.widget.*
 import java.util.Locale
 import java.util.concurrent.Executors
 
@@ -49,21 +38,18 @@ class MainActivity : Activity() {
     private val deviceMessages = mutableMapOf<String, DeviceMessage>()
     private var listMessage: DeviceMessage? = null
     private var refreshAnimation: ObjectAnimator? = null
-    private lateinit var page: ScrollView
-    private lateinit var input: EditText
-    private lateinit var devicePanel: DeviceListPanel
-    private lateinit var send: TextView
-    private lateinit var connect: TextView
-    private lateinit var rename: TextView
-    private lateinit var refresh: View
-    private lateinit var languageButton: TextView
-    private lateinit var themeButton: View
-    private lateinit var textCard: LinearLayout
+    private lateinit var screen: SenderScreen
     private var keyboardViewport: KeyboardViewport? = null
+    private val page get() = screen.page
+    private val devicePanel get() = screen.devicePanel
+    private val input get() = screen.composer.input
+    private val send get() = screen.composer.sendButton
+    private val connect get() = screen.connectButton
+    private val rename get() = screen.renameButton
+    private val refresh get() = screen.refreshButton
+    private val languageButton get() = screen.composer.languageButton
+    private val themeButton get() = screen.composer.themeButton
     private val palette get() = Palette(darkMode)
-    private val ink get() = palette.ink
-    private val muted get() = palette.muted
-    private val blue get() = palette.accent
     private val canvas get() = palette.canvas
     private val rowHeight get() = maxOf(dp(64), (resources.displayMetrics.scaledDensity * 44 + dp(16)).toInt())
 
@@ -75,7 +61,7 @@ class MainActivity : Activity() {
         store = ProfileStore(this)
         controller = SenderController(catalog, TvDiscovery(this), Executors.newSingleThreadExecutor(),
             { action -> main.post { action() } }, { devicesChanged ->
-                if(this::send.isInitialized && !destroyed) {
+                if(this::screen.isInitialized && !destroyed) {
                     if(devicesChanged)renderDevices()
                     updateRefreshAnimation();updateControls()
                 }
@@ -90,16 +76,48 @@ class MainActivity : Activity() {
         selectedId = state?.getString("selected") ?: getPreferences(MODE_PRIVATE).getString("selected", "").orEmpty()
         startupChecked = state?.getBoolean("startup-checked") ?: false
         resumeScanAfterRecreate = state?.getBoolean("resume-scan") ?: false
+        screen = SenderScreen(
+            activity = this,
+            palette = { palette },
+            dp = ::dp,
+            text = { key -> text(key) },
+            versionLabel = {
+                val version = packageManager.getPackageInfo(packageName, 0).versionName.orEmpty()
+                text("version", version)
+            },
+            language = { language },
+            darkMode = { darkMode },
+            rowHeight = { rowHeight },
+            onDeviceSelected = ::selectDevice,
+            onRefresh = { scan() },
+            onRename = ::renameSelected,
+            onConnect = {
+                selected()?.let { if (paired(it)) unpair(it) else pair(it) }
+            },
+            onInputChanged = { updateControls() },
+            onSend = ::sendText,
+            onLanguageClick = ::toggleLanguage,
+            onThemeClick = ::toggleTheme,
+        )
         buildUi(state?.getString("draft").orEmpty())
-        state?.let { input.setSelection(it.getInt("selection-start",input.length()).coerceIn(0,input.length()),it.getInt("selection-end",input.length()).coerceIn(0,input.length())) }
+        state?.let {
+            val start = it.getInt("selection-start", input.length()).coerceIn(0, input.length())
+            val end = it.getInt("selection-end", input.length()).coerceIn(0, input.length())
+            input.setSelection(start, end)
+        }
         if (!storageHealthy) message("storage_error", true)
         else if (state?.getBoolean("sending") == true) message("uncertain", true)
     }
     override fun onStart() {
         super.onStart()
         scanAtStop = false
-        if(!startupChecked) { startupChecked = true; if(!catalog.hasPairings()) scan() }
-        else if(resumeScanAfterRecreate) { resumeScanAfterRecreate = false; controller.scan(preserveExisting = true, revalidateId = invalidSelection()) }
+        if (!startupChecked) {
+            startupChecked = true
+            if (!catalog.hasPairings()) scan()
+        } else if (resumeScanAfterRecreate) {
+            resumeScanAfterRecreate = false
+            controller.scan(preserveExisting = true, revalidateId = invalidSelection())
+        }
     }
     override fun onStop() {
         scanAtStop = scanning
@@ -116,12 +134,21 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
     override fun onSaveInstanceState(out: Bundle) {
-        out.putString("draft", input.text.toString()); out.putString("selected", selectedId); out.putBoolean("sending", sending)
-        out.putBoolean("startup-checked",startupChecked); out.putInt("selection-start",input.selectionStart); out.putInt("selection-end",input.selectionEnd)
+        out.putString("draft", input.text.toString())
+        out.putString("selected", selectedId)
+        out.putBoolean("sending", sending)
+        out.putBoolean("startup-checked", startupChecked)
+        out.putInt("selection-start", input.selectionStart)
+        out.putInt("selection-end", input.selectionEnd)
         out.putBoolean("resume-scan", scanning || scanAtStop)
         out.putStringArrayList("invalid-ids", ArrayList(catalog.invalidIds()))
         out.putParcelableArrayList("discovered", ArrayList(catalog.advertisements().map { tv ->
-            Bundle().apply { putString("id", tv.id); putString("name", tv.name); putString("host", tv.endpoint.host); putInt("port", tv.endpoint.port) }
+            Bundle().apply {
+                putString("id", tv.id)
+                putString("name", tv.name)
+                putString("host", tv.endpoint.host)
+                putInt("port", tv.endpoint.port)
+            }
         }))
         super.onSaveInstanceState(out)
     }
@@ -130,173 +157,95 @@ class MainActivity : Activity() {
         catalog.restoreInvalidIds(state.getStringArrayList("invalid-ids").orEmpty())
         val devices = runCatching { state.getParcelableArrayList<Bundle>("discovered") }.getOrNull().orEmpty()
         devices.take(100).forEach { item ->
-            val id = item.getString("id").orEmpty(); val name = item.getString("name").orEmpty()
+            val id = item.getString("id").orEmpty()
+            val name = item.getString("name").orEmpty()
             if (Wire.validId(id) && name.isNotBlank() && name.length <= 160) {
                 runCatching { Tv(id, name, Endpoint(item.getString("host").orEmpty(), item.getInt("port"))) }
                     .getOrNull()?.let(catalog::discover)
             }
         }
     }
-    private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
+    private fun dp(value: Int) = (value * resources.displayMetrics.density + 0.5f).toInt()
     private fun text(key: String, vararg args: Any): String {
         val id = resources.getIdentifier(key, "string", packageName)
         return if (args.isEmpty()) localized.getString(id) else localized.getString(id, *args)
     }
-    private fun background(fill: Int, radius: Int = 14, border: Int = Color.TRANSPARENT) = GradientDrawable().apply {
-        setColor(fill); cornerRadius = dp(radius).toFloat(); if (border != Color.TRANSPARENT) setStroke(dp(1), border)
-    }
-    private fun label(value: String, size: Float, color: Int = ink, bold: Boolean = false) = TextView(this).apply {
-        setText(value); textSize = size; setTextColor(color); if (bold) typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-        includeFontPadding = false
-    }
-    private fun button(value: String, primary: Boolean = false) = label(value, 13f, if(primary) Color.WHITE else palette.buttonInk, true).apply {
-        gravity = Gravity.CENTER; isClickable = true; isFocusable = true; isFocusableInTouchMode = false; minHeight = dp(44); setPadding(dp(14),0,dp(14),0)
-        background = RippleDrawable(ColorStateList.valueOf(palette.ripple), background(if(primary) palette.primary else palette.button,12), null)
-        accessibilityDelegate = object : View.AccessibilityDelegate() {
-            override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
-                super.onInitializeAccessibilityNodeInfo(host,info); info.className = android.widget.Button::class.java.name
-            }
-        }
-    }
-    private fun column() = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-    private fun card() = column().apply { setPadding(dp(16),dp(16),dp(16),dp(16)); background = background(palette.surface,20,palette.border) }
-    private fun iconButton(kind: String, description: String) = Artwork(this,kind,palette).apply {
-        contentDescription=description; isClickable=true; isFocusable=true; isFocusableInTouchMode=false; minimumWidth=dp(48); minimumHeight=dp(48)
-        background=RippleDrawable(ColorStateList.valueOf(palette.ripple),background(palette.button,12),null)
-        accessibilityDelegate=object:View.AccessibilityDelegate() {
-            override fun onInitializeAccessibilityNodeInfo(host:View,info:android.view.accessibility.AccessibilityNodeInfo) {
-                super.onInitializeAccessibilityNodeInfo(host,info); info.className=android.widget.Button::class.java.name
-            }
-        }
-    }
     private fun rebuildUi(focus: String) {
-        val draft=input.text.toString();val start=input.selectionStart;val end=input.selectionEnd
-        val pageY=page.scrollY;val rowsY=devicePanel.scrollPosition
-        buildUi(draft);input.setSelection(start.coerceIn(0,input.length()),end.coerceIn(0,input.length()))
-        page.post { if(!destroyed) { page.scrollTo(0,pageY);devicePanel.restoreScroll(rowsY) } }
-        if(focus=="theme") themeButton.requestFocus() else languageButton.requestFocus()
+        val draft = input.text.toString()
+        val start = input.selectionStart
+        val end = input.selectionEnd
+        val pageY = page.scrollY
+        val rowsY = devicePanel.scrollPosition
+
+        buildUi(draft)
+        input.setSelection(start.coerceIn(0, input.length()), end.coerceIn(0, input.length()))
+        page.post {
+            if (!destroyed) {
+                page.scrollTo(0, pageY)
+                devicePanel.restoreScroll(rowsY)
+            }
+        }
+        if (focus == "theme") themeButton.requestFocus() else languageButton.requestFocus()
     }
-    private fun LinearLayout.add(view: View, width: Int = -1, height: Int = -2, top: Int = 0) {
-        addView(view, LinearLayout.LayoutParams(width, height).apply { topMargin = dp(top) })
-    }
+
     private fun buildUi(draft: String) {
         keyboardViewport?.close()
         keyboardViewport = null
-        refreshAnimation?.cancel();refreshAnimation=null
-        setTheme(resources.getIdentifier(if(darkMode) "AppTheme.Dark" else "AppTheme", "style", packageName))
+        refreshAnimation?.cancel()
+        refreshAnimation = null
+        val theme = if (darkMode) "AppTheme.Dark" else "AppTheme"
+        setTheme(resources.getIdentifier(theme, "style", packageName))
+
         val config = Configuration(resources.configuration).apply { setLocale(Locale(language)) }
         localized = createConfigurationContext(config)
-        window.setBackgroundDrawable(ColorDrawable(canvas));window.statusBarColor=canvas;window.navigationBarColor=canvas
-        val lightFlags=View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-        window.decorView.systemUiVisibility=if(darkMode) window.decorView.systemUiVisibility and lightFlags.inv() else window.decorView.systemUiVisibility or lightFlags
-        page = ScrollView(this).apply { tag="page";setBackgroundColor(canvas); isFillViewport = true; isVerticalScrollBarEnabled = false }
-        val wide = resources.configuration.screenWidthDp >= 840
-        val maxWidth = if(wide) 1080 else 680
-        val stage = FrameLayout(this)
-        val content = column().apply { setPadding(dp(20),dp(18),dp(20),dp(12));isFocusableInTouchMode=true }
-        stage.addView(content,FrameLayout.LayoutParams(dp(minOf(resources.configuration.screenWidthDp,maxWidth)),-2,Gravity.TOP or Gravity.CENTER_HORIZONTAL))
-        page.addView(stage, FrameLayout.LayoutParams(-1,-2)); setContentView(page);content.requestFocus()
-        buildHeader(content)
-        val workspace=buildWorkspace(content,wide)
-        buildDeviceCard(workspace,wide)
-        buildComposer(workspace,wide,draft)
+        window.setBackgroundDrawable(ColorDrawable(canvas))
+        window.statusBarColor = canvas
+        window.navigationBarColor = canvas
+        val lightFlags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        window.decorView.systemUiVisibility = if (darkMode) {
+            window.decorView.systemUiVisibility and lightFlags.inv()
+        } else {
+            window.decorView.systemUiVisibility or lightFlags
+        }
+
+        setContentView(screen.build(draft))
+        screen.requestContentFocus()
         renderDevices()
         updateRefreshAnimation()
         keyboardViewport = KeyboardViewport(this, page, input, send, { dp(it) }).also { it.start() }
     }
-    private fun buildHeader(content: LinearLayout) {
-        val header = FrameLayout(this)
-        val heading = column()
-        heading.add(label("TVText",32f,ink,true))
-        val version = packageManager.getPackageInfo(packageName,0).versionName.orEmpty()
-        heading.add(label(text("version",version),12f,muted),top=7)
-        header.addView(heading, FrameLayout.LayoutParams(-2,-2).apply { gravity = Gravity.START or Gravity.CENTER_VERTICAL })
-        header.addView(Artwork(this,"link",palette), FrameLayout.LayoutParams(dp(124),dp(68)).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL })
-        content.add(header,height=dp(76))
+    private fun toggleLanguage() {
+        language = if (language == "ru") "en" else "ru"
+        getPreferences(MODE_PRIVATE).edit().putString("language", language).apply()
+        rebuildUi("language")
     }
-    private fun buildWorkspace(content: LinearLayout,wide: Boolean): LinearLayout {
-        val workspace=LinearLayout(this).apply { orientation=if(wide) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL; gravity=Gravity.TOP }
-        content.add(workspace,top=18)
-        return workspace
+
+    private fun toggleTheme() {
+        darkMode = !darkMode
+        getPreferences(MODE_PRIVATE).edit().putBoolean("dark", darkMode).apply()
+        rebuildUi("theme")
     }
-    private fun buildDeviceCard(workspace: LinearLayout,wide: Boolean) {
-        val deviceCard = card()
-        if(wide) workspace.addView(deviceCard,LinearLayout.LayoutParams(0,-2,1f)) else workspace.add(deviceCard)
-        val title = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
-        title.addView(label(text("televisions"),11f,muted,true),LinearLayout.LayoutParams(0,-2,1f))
-        refresh = iconButton("refresh",text("refresh")).apply { tag="refresh";setOnClickListener { scan() } }
-        title.addView(refresh,LinearLayout.LayoutParams(dp(48),dp(48))); deviceCard.add(title)
-        devicePanel = DeviceListPanel(this, { palette }, ::dp, { rowHeight }, ::selectDevice)
-        deviceCard.add(devicePanel.view,height=rowHeight*3+dp(8),top=12)
-        val actions = LinearLayout(this).apply { gravity = Gravity.END }
-        rename = button(text("rename")).apply { tag = "rename"; setOnClickListener { renameSelected() } }
-        connect = button(text("connect")).apply { tag = "connect"; setOnClickListener { selected()?.let { if(paired(it)) unpair(it) else pair(it) } } }
-        actions.addView(rename,LinearLayout.LayoutParams(0,dp(44),1f))
-        actions.addView(Space(this),LinearLayout.LayoutParams(dp(8),1))
-        actions.addView(connect,LinearLayout.LayoutParams(0,dp(44),1f)); deviceCard.add(actions,top=12)
-    }
-    private fun buildComposer(workspace: LinearLayout,wide: Boolean,draft: String) {
-        val composer=column()
-        if(wide) workspace.addView(composer,LinearLayout.LayoutParams(0,-2,1f).apply { leftMargin=dp(20) }) else workspace.add(composer,top=14)
-        buildTextCard(composer,draft)
-        buildSendButton(composer)
-        buildComposerFooter(composer)
-    }
-    private fun buildTextCard(composer: LinearLayout,draft: String) {
-        textCard = card().apply { tag="text-card" }; composer.add(textCard)
-        textCard.add(label(text("text_prompt"),16f,ink,true))
-        input = EditText(this).apply {
-            tag = "text-input"; contentDescription = text("text_accessible"); textSize = 18f; setTextColor(ink)
-            EditorStyle.apply(this,palette)
-            background = null; setPadding(0,dp(6),0,dp(4)); gravity = Gravity.TOP or Gravity.START
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-            imeOptions = EditorInfo.IME_ACTION_SEND or EditorInfo.IME_FLAG_NO_EXTRACT_UI
-            setLines(3); maxLines = 3; isVerticalScrollBarEnabled = true; isScrollbarFadingEnabled = true
-            filters = arrayOf(InputFilter.LengthFilter(32768)); setText(draft)
-            setOnEditorActionListener { _, action, event ->
-                if (action == EditorInfo.IME_ACTION_SEND || event != null && event.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN && !event.isShiftPressed) { sendText(); true } else false
-            }
-            addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { if(this@MainActivity::send.isInitialized) updateControls() }
-                override fun afterTextChanged(s: Editable?) = Unit
-            })
-        }
-        textCard.add(input,top=10)
-    }
-    private fun buildSendButton(composer: LinearLayout) {
-        val sendPanel = FrameLayout(this)
-        send = button(text("send"),true).apply { textSize = 16f; tag = "send"; setOnClickListener { sendText() } }
-        sendPanel.addView(send,FrameLayout.LayoutParams(-1,-1))
-        sendPanel.addView(Artwork(this,"send",palette),FrameLayout.LayoutParams(dp(40),dp(40)).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL; rightMargin = dp(10) })
-        composer.add(sendPanel,height=dp(54),top=16)
-    }
-    private fun buildComposerFooter(composer: LinearLayout) {
-        val footer = LinearLayout(this).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL }
-        languageButton = button(language.uppercase(Locale.ROOT)).apply {
-            textSize = 13f; contentDescription = text("language"); tag = "language"
-            setOnClickListener {
-                language = if(language == "ru") "en" else "ru"
-                getPreferences(MODE_PRIVATE).edit().putString("language",language).apply(); rebuildUi("language")
-            }
-        }
-        themeButton=iconButton(if(darkMode) "sun" else "moon",text(if(darkMode) "theme_light" else "theme_dark")).apply {
-            tag="theme";setOnClickListener { darkMode=!darkMode;getPreferences(MODE_PRIVATE).edit().putBoolean("dark",darkMode).apply();rebuildUi("theme") }
-        }
-        footer.addView(languageButton,LinearLayout.LayoutParams(dp(54),dp(48)))
-        footer.addView(themeButton,LinearLayout.LayoutParams(dp(48),dp(48)).apply { leftMargin=dp(8) }); composer.add(footer,top=10)
-    }
+
     private fun choices(): List<Tv> = catalog.choices()
     private fun selected() = choices().firstOrNull { it.id == selectedId }
     private fun paired(tv: Tv) = catalog.isPaired(tv)
+
     private fun renderDevices() {
         val values = choices()
-        if(selectedId.isEmpty() || values.none { it.id == selectedId }) selectedId = values.firstOrNull()?.id.orEmpty()
-        devicePanel.render(values, selectedId, ::paired, { tv ->
-            deviceMessages[tv.id]?.let(::messageText) ?: text(if(paired(tv)) "paired" else "not_paired")
-        }, listMessage?.let(::messageText).orEmpty(), listMessage?.error == true)
+        if (selectedId.isEmpty() || values.none { it.id == selectedId }) {
+            selectedId = values.firstOrNull()?.id.orEmpty()
+        }
+        devicePanel.render(
+            values,
+            selectedId,
+            ::paired,
+            { tv -> deviceMessages[tv.id]?.let(::messageText) ?: text(if (paired(tv)) "paired" else "not_paired") },
+            listMessage?.let(::messageText).orEmpty(),
+            listMessage?.error == true,
+        )
         updateControls()
     }
+
     private fun selectDevice(tv: Tv) {
         if (busy) return
         selectedId = tv.id
@@ -306,55 +255,91 @@ class MainActivity : Activity() {
         if (!devicePanel.view.isInTouchMode) devicePanel.focus(tv.id)
         getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(input.windowToken, 0)
     }
+
     private fun updateControls() {
         val tv = selected()
-        send.isEnabled = !busy && tv != null && paired(tv) && input.text.isNotEmpty(); send.alpha = if(send.isEnabled) 1f else .45f
-        send.text = text(if(sending) "sending" else "send")
-        connect.text = text(if(tv != null && paired(tv)) "unbind" else "connect")
-        connect.isEnabled = !busy && tv != null && storageHealthy; connect.alpha = if(connect.isEnabled) 1f else .45f
-        rename.isEnabled = !busy && tv != null && storageHealthy; rename.alpha = if(rename.isEnabled) 1f else .45f
-        refresh.isEnabled = !busy && !scanning; refresh.alpha = if(busy) .45f else 1f
+        send.isEnabled = !busy && tv != null && paired(tv) && input.text.isNotEmpty()
+        send.alpha = if (send.isEnabled) 1f else 0.45f
+        send.text = text(if (sending) "sending" else "send")
+        connect.text = text(if (tv != null && paired(tv)) "unbind" else "connect")
+        connect.isEnabled = !busy && tv != null && storageHealthy
+        connect.alpha = if (connect.isEnabled) 1f else 0.45f
+        rename.isEnabled = !busy && tv != null && storageHealthy
+        rename.alpha = if (rename.isEnabled) 1f else 0.45f
+        refresh.isEnabled = !busy && !scanning
+        refresh.alpha = if (busy) 0.45f else 1f
         languageButton.isEnabled = !busy
         themeButton.isEnabled = !busy
     }
-    private fun messageText(value: DeviceMessage) = value.detail?.let { text(value.key,it) } ?: text(value.key)
+    private fun messageText(value: DeviceMessage) = value.detail?.let { text(value.key, it) } ?: text(value.key)
+
     private fun message(key: String, error: Boolean = false, target: String = selectedId, detail: String? = null) {
-        val value=DeviceMessage(key,error,detail)
-        if(target.isNotEmpty()&&choices().any { it.id==target }) deviceMessages[target]=value else listMessage=value
+        val value = DeviceMessage(key, error, detail)
+        if (target.isNotEmpty() && choices().any { it.id == target }) deviceMessages[target] = value
+        else listMessage = value
         renderDevices()
     }
+
     private fun clearMessage(target: String? = null) {
-        if(target==null) { deviceMessages.clear();listMessage=null } else deviceMessages.remove(target)
+        if (target == null) {
+            deviceMessages.clear()
+            listMessage = null
+        } else {
+            deviceMessages.remove(target)
+        }
         renderDevices()
     }
+
     private fun updateRefreshAnimation() {
-        if(!this::refresh.isInitialized)return
-        if(scanning) {
-            if(refreshAnimation==null)refreshAnimation=ObjectAnimator.ofFloat(refresh,"glyphRotation",0f,360f).apply {
-                duration=1000;repeatCount=ValueAnimator.INFINITE;interpolator=LinearInterpolator();start()
-            }
-        } else { refreshAnimation?.cancel();refreshAnimation=null;(refresh as Artwork).glyphRotation=0f }
-    }
-    private fun invalidSelection() = selectedId.takeIf { it in catalog.invalidIds() }
-    private fun scan(completion: (() -> Unit)? = null) = controller.scan(revalidateId = invalidSelection(), completion = completion)
-    private fun pair(tv: Tv) {
-        dialogs.pair { pin -> controller.probe(tv) { fingerprint ->
-            dialogs.fingerprint(fingerprint, {
-                controller.pair(tv,pin,fingerprint) {
-                    selectedId=tv.id;clearMessage(tv.id);input.requestFocus()
+        if (!this::screen.isInitialized) return
+        if (scanning) {
+            if (refreshAnimation == null) {
+                refreshAnimation = ObjectAnimator.ofFloat(refresh, "glyphRotation", 0f, 360f).apply {
+                    duration = 1000
+                    repeatCount = ValueAnimator.INFINITE
+                    interpolator = LinearInterpolator()
+                    start()
                 }
-            }, { clearMessage(tv.id) })
-        } }
+            }
+        } else {
+            refreshAnimation?.cancel()
+            refreshAnimation = null
+            (refresh as Artwork).glyphRotation = 0f
+        }
     }
+
+    private fun invalidSelection() = selectedId.takeIf { it in catalog.invalidIds() }
+
+    private fun scan(completion: (() -> Unit)? = null) =
+        controller.scan(revalidateId = invalidSelection(), completion = completion)
+
+    private fun pair(tv: Tv) {
+        dialogs.pair { pin ->
+            controller.probe(tv) { fingerprint ->
+                dialogs.fingerprint(fingerprint, {
+                    controller.pair(tv, pin, fingerprint) {
+                        selectedId = tv.id
+                        clearMessage(tv.id)
+                        input.requestFocus()
+                    }
+                }, { clearMessage(tv.id) })
+            }
+        }
+    }
+
     private fun sendText() {
-        val tv=selected() ?: return
-        val draft=input.text.toString()
-        controller.send(tv,draft) { if(input.text.toString()==draft)input.text.clear() }
+        val tv = selected() ?: return
+        val draft = input.text.toString()
+        controller.send(tv, draft) {
+            if (input.text.toString() == draft) input.text.clear()
+        }
     }
+
     private fun renameSelected() {
-        val tv=selected() ?: return
-        dialogs.rename(tv.displayName) { controller.rename(tv,it) }
+        val tv = selected() ?: return
+        dialogs.rename(tv.displayName) { controller.rename(tv, it) }
     }
+
     private fun unpair(tv: Tv) {
         dialogs.confirmUnpair { controller.unpair(tv) { dialogs.remoteFailure() } }
     }
