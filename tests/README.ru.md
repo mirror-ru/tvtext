@@ -2,10 +2,14 @@
 
 [English version](README.md)
 
-Сначала тесты сгруппированы по продукту, затем по типу проверки. Сценарии запуска остаются в корне репозитория, поэтому привычные локальные и релизные команды не меняются.
+Сначала тесты сгруппированы по продукту, затем по типу проверки. Скрипты запуска находятся рядом с наборами; запускайте их из корня репозитория командой `.\tests\...`.
 
 ```text
 tests/
+  test.ps1              Windows/TV core, integration и UI-тесты
+  test-mobile.ps1       мобильные JVM/TLS и device-тесты
+  test-tv-ui.ps1        device-тесты Android TV
+  test-compatibility.ps1 матрица выбранных API-эмуляторов
   android-tv/
     core/               протокол приёмника, состояние и надёжность
     instrumentation/ui/ UI Android, IME и проверки внешнего поля ввода
@@ -25,9 +29,9 @@ tests/
 
 ## Команды запуска
 
-- `test.ps1` запускает tooling, Windows core/integration/UI и Android TV core, включая локальную TLS-фикстуру.
-- `test-mobile.ps1` запускает мобильные JVM/core и TLS-тесты. Параметр `-Device emulator-N` добавляет Android instrumentation.
-- `test-tv-ui.ps1` собирает и запускает instrumentation Android TV на явно указанном эмуляторе.
-- `test-compatibility.ps1` запускает мобильные и TV device-наборы на выбранных API-эмуляторах и сохраняет матрицу результатов.
+- `tests/test.ps1` запускает tooling, Windows core/integration/UI и Android TV core, включая локальную TLS-фикстуру.
+- `tests/test-mobile.ps1` запускает мобильные JVM/core и TLS-тесты. Параметр `-Device emulator-N` добавляет Android instrumentation.
+- `tests/test-tv-ui.ps1` собирает и запускает instrumentation Android TV на явно указанном эмуляторе.
+- `tests/test-compatibility.ps1` запускает мобильные и TV device-наборы на выбранных API-эмуляторах и сохраняет матрицу результатов.
 
 Артефакты тестов, тестовые APK, ключи фикстур и журналы остаются в игнорируемой папке `build/`. Локальные TLS-фикстуры используют loopback; сохранённые данные ТВ не нужны. Android instrumentation отделена от JVM/core-проверок, поэтому её можно пропустить, не теряя базовые проверки логики и протокола.

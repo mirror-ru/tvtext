@@ -46,17 +46,17 @@ Each APK receives an adjacent `<filename>.apk.build.json` record. It contains th
 Fingerprint paths now use the same order under Windows PowerShell 5.1 and PowerShell 7. After the fingerprint algorithm and sources change, old build records no longer match the current project: rebuild the APK and its record with the existing signing key.
 
 ```powershell
-.\test-mobile.ps1 -Device emulator-5580 `
+.\tests\test-mobile.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
   -AppApk '.\dist\TVText-Mobile-2.0.10.apk'
-.\test-tv-ui.ps1 -Device emulator-5580 `
+.\tests\test-tv-ui.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
   -AppApk '.\dist\TVText-TV-2.0.10.apk'
 ```
 
 The scripts find `app.jar` through this record. `-AppJar` can point to a moved copy, but its hash must match. They reject missing records, changed APK/JAR contents, a different target/version/toolchain, and application/build source changes before installing anything. Rebuild old APKs that have no record. Rebuild after source changes. Retain `build/run-*/` until the associated tests finish.
 
-Only explicitly named isolated emulators are accepted. JVM-only mobile tests do not need an APK, SDK or signing key. `test.ps1` includes `tests/tooling/BuildTests.ps1`, which checks version validation, Windows dependency isolation and mismatched APK/JAR rejection. To run those build checks separately:
+Only explicitly named isolated emulators are accepted. JVM-only mobile tests do not need an APK, SDK or signing key. `tests/test.ps1` includes `tests/tooling/BuildTests.ps1`, which checks version validation, Windows dependency isolation and mismatched APK/JAR rejection. To run those build checks separately:
 
 ```powershell
 .\tests\tooling\BuildTests.ps1

@@ -5,29 +5,30 @@ param(
     [switch]$Shrink
 )
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'scripts\Common.ps1')
-& (Join-Path $PSScriptRoot 'tests\tooling\BuildTests.ps1')
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $ProjectRoot 'scripts\Common.ps1')
+& (Join-Path $PSScriptRoot 'tooling\BuildTests.ps1')
 $jvm = Resolve-JvmTools $Jdk $Kotlin
 $csc = Resolve-CSharpCompiler
 $version = Read-ProjectVersion
 if ($Shrink) { $r8Tools = Resolve-AndroidBuildTools $Sdk }
-$run = Join-Path $PSScriptRoot ('build\test-' + [guid]::NewGuid().ToString('N'))
+$run = Join-Path $ProjectRoot ('build\test-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $run | Out-Null
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'tests\shared\protocol\v1-vectors.txt') -Destination (Join-Path $run 'protocol-v1-vectors.txt')
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'shared\protocol\v1-vectors.txt') -Destination (Join-Path $run 'protocol-v1-vectors.txt')
 $java = $jvm.Java
 $testJar = Join-Path $run 'core-tests.jar'
-$kotlinTests = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tests\android-tv\core') -Filter '*.kt' -Recurse | ForEach-Object FullName)
-Invoke-Checked $java (@('-cp',(Join-Path $Kotlin 'lib\*'),'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler','-no-reflect','-no-stdlib','-jvm-target','1.8','-classpath',(Join-Path $Kotlin 'lib\kotlin-stdlib.jar'),'-include-runtime','-kotlin-home',$Kotlin,'-d',$testJar,(Join-Path $PSScriptRoot 'android-tv\src\com\tvtext\app\Protocol.kt'),(Join-Path $PSScriptRoot 'android-tv\src\com\tvtext\app\ReceiverStatus.kt')) + $kotlinTests)
+$kotlinTests = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'android-tv\core') -Filter '*.kt' -Recurse | ForEach-Object FullName)
+Invoke-Checked $java (@('-cp',(Join-Path $Kotlin 'lib\*'),'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler','-no-reflect','-no-stdlib','-jvm-target','1.8','-classpath',(Join-Path $Kotlin 'lib\kotlin-stdlib.jar'),'-include-runtime','-kotlin-home',$Kotlin,'-d',$testJar,(Join-Path $ProjectRoot 'android-tv\src\com\tvtext\app\Protocol.kt'),(Join-Path $ProjectRoot 'android-tv\src\com\tvtext\app\ReceiverStatus.kt')) + $kotlinTests)
 if($Shrink) {
     $r8 = Get-Item -LiteralPath $r8Tools
     $shrunkJar = Join-Path $run 'shrunk-tests.jar'
-    Invoke-Checked $java @('-cp',(Join-Path $r8.FullName 'lib\d8.jar'),'com.android.tools.r8.R8','--classfile','--lib',$Jdk,'--pg-conf',(Join-Path $PSScriptRoot 'android-tv\r8-rules.pro'),'--output',$shrunkJar,$testJar,(Join-Path $Kotlin 'lib\annotations-13.0.jar'))
+    Invoke-Checked $java @('-cp',(Join-Path $r8.FullName 'lib\d8.jar'),'com.android.tools.r8.R8','--classfile','--lib',$Jdk,'--pg-conf',(Join-Path $ProjectRoot 'android-tv\r8-rules.pro'),'--output',$shrunkJar,$testJar,(Join-Path $Kotlin 'lib\annotations-13.0.jar'))
     $testJar = $shrunkJar
 }
 $metadata = Write-WindowsVersionFiles $run $version
 $testExe = Join-Path $run 'ClientTests.exe'
-$csharp = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'windows') -Filter '*.cs' -Recurse | ForEach-Object FullName)
-$csharp += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tests\windows') -Filter '*.cs' -Recurse | ForEach-Object FullName)
+$csharp = @(Get-ChildItem -LiteralPath (Join-Path $ProjectRoot 'windows') -Filter '*.cs' -Recurse | ForEach-Object FullName)
+$csharp += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'windows') -Filter '*.cs' -Recurse | ForEach-Object FullName)
 Invoke-Checked $csc (@('/nologo','/target:exe','/main:ClientTests','/codepage:65001',('/out:'+$testExe),'/r:System.dll','/r:System.Core.dll','/r:System.Drawing.dll','/r:System.Windows.Forms.dll','/r:System.Security.dll',$metadata.AssemblyInfo) + $csharp)
 Invoke-Checked $testExe @('dpi-layout')
 Invoke-Checked $testExe @('connection-save')

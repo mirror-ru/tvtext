@@ -15,10 +15,10 @@ Both APKs require Android 9 / API 28 or newer. This is a build requirement, not 
 | 15–16 / API 35–36 | Accessibility input connection | Runtime not run |
 | Physical Google TV / vendor firmware | Depends on Android and target editor | Not run in this environment |
 
-`test-compatibility.ps1` runs mobile and TV suites sequentially on explicitly named isolated emulators and writes a JSON matrix of passed, failed and untested versions. It uses phone and TV screen dimensions, restoring the previous size/density overrides even on failure. It does not download images, operate physical devices, or turn absent tests into passes. The mobile result reports the actual API level. Device tests install test apps and alter test preferences; use disposable AVDs only.
+`tests/test-compatibility.ps1` runs mobile and TV suites sequentially on explicitly named isolated emulators and writes a JSON matrix of passed, failed and untested versions. It uses phone and TV screen dimensions, restoring the previous size/density overrides even on failure. It does not download images, operate physical devices, or turn absent tests into passes. The mobile result reports the actual API level. Device tests install test apps and alter test preferences; use disposable AVDs only.
 
 ```powershell
-.\test-compatibility.ps1 -Device emulator-5580 `
+.\tests\test-compatibility.ps1 -Device emulator-5580 `
   -Artifacts '.\dist' -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
 ```
 

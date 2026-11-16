@@ -36,11 +36,11 @@ $exe = Get-Item -LiteralPath (Join-Path $artifacts $names[2])
 if ($exe.VersionInfo.FileVersion -cne $version.Assembly -or [Reflection.AssemblyName]::GetAssemblyName($exe.FullName).Version.ToString() -cne $version.Assembly) { throw 'Windows version mismatch.' }
 [xml]$config = Get-Content -LiteralPath (Join-Path $artifacts $names[3]) -Raw
 if (!$config.configuration.startup.supportedRuntime) { throw 'Missing Windows runtime configuration.' }
-& (Join-Path $PSScriptRoot 'test.ps1') @tools
+& (Join-Path $PSScriptRoot 'tests\test.ps1') @tools
 if ($Tests -eq 'Full') {
-    & (Join-Path $PSScriptRoot 'test-compatibility.ps1') @tools -Device $Device -Artifacts $artifacts -Output (Join-Path $run 'compatibility.json')
+    & (Join-Path $PSScriptRoot 'tests\test-compatibility.ps1') @tools -Device $Device -Artifacts $artifacts -Output (Join-Path $run 'compatibility.json')
 } else {
-    & (Join-Path $PSScriptRoot 'test-mobile.ps1') @tools
+    & (Join-Path $PSScriptRoot 'tests\test-mobile.ps1') @tools
 }
 Assert-ReleaseSources $sourceHash
 $null = Resolve-TestBuild (Join-Path $artifacts $names[0]) '' 'android-tv'

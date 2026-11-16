@@ -1,14 +1,23 @@
 # TVText test report
 
+## UI components and malformed protocol vectors — 16 November 2026
+
+- Moved the mobile TV-list panel and Android TV receiver-status card into focused components; split Windows form workflow coordination into `MainForm.Operations.cs`.
+- Shared protocol vectors now cover malformed UTF-8, trailing bytes, truncated bodies, negative lengths and frames above the maximum. Android TV and mobile parsers check request and response cases; Windows checks malformed responses and rejects malformed UTF-16 before sending.
+- Moved the four test entry-point scripts into `tests/`; updated their project-relative paths, documentation and release-script calls.
+- `tests/test.ps1` passed from its new location, including Windows UI/TLS and Android TV core: `build/test-daf9e08c26f943e183cbda7103ec93a6/`.
+- `tests/test-mobile.ps1` passed from its new location: `build/mobile-test-e0df51cc3251418f89bcd6ac9a95d4ac/`.
+- `build.ps1 -Target All` built the Windows EXE and both signed APKs: `build/refactor-3-4-check/`. Runtime Android UI instrumentation was not run because no AVD is installed.
+
 ## Local refactor, protocol, build-cache and diagnostics checks — 16 November 2026
 
 - When the mobile keyboard opens, a separate lifecycle-aware viewport helper reveals the enabled “Send to TV” button as soon as the first resized layout arrives and corrects the position while the window continues resizing. The editor retains focus. The updated instrumentation source compiles; runtime instrumentation was not run because no AVD is currently installed.
-- `test.ps1` passed after the UI split and protocol boundary additions: Windows UI/TLS and DPI scenarios, Android TV core, build tooling, and the real Windows client sending an exact 32 KiB UTF-8 payload to the TV fixture. Results: `build/test-5ce2b2fae7d14b838359bdaff0d76cff/`.
-- `test-mobile.ps1` passed with exact 32 KiB UTF-8 boundary and rejection cases: `build/mobile-test-4a78458955734d28bc7e1249d25061d1/`.
+- `tests/test.ps1` passed after the UI split and protocol boundary additions: Windows UI/TLS and DPI scenarios, Android TV core, build tooling, and the real Windows client sending an exact 32 KiB UTF-8 payload to the TV fixture. Results: `build/test-5ce2b2fae7d14b838359bdaff0d76cff/`.
+- `tests/test-mobile.ps1` passed with exact 32 KiB UTF-8 boundary and rejection cases: `build/mobile-test-4a78458955734d28bc7e1249d25061d1/`.
 - `build.ps1 -Target All` built all three applications with verified APK signatures in `build/optimization-check/`.
 - Reorganized the test tree by product and layer without removing or rewriting scenarios; see the [test map](../../tests/README.md) ([Russian](../../tests/README.ru.md)).
-- `test.ps1` passed after the folder move: tooling/cache regressions, Windows DPI/theme/pairing/list/dialog UI, Windows-to-TV TLS integration, receiver core tests, and shared protocol vectors. Results: `build/test-943a75e5c1c7484b8ff32fc2edca454e/`.
-- `test-mobile.ps1` passed from the reorganized paths: JVM/controller/TLS suite and the same protocol vectors. Results: `build/mobile-test-32e5ff8c349846278dff12ebccbc06af/`.
+- `tests/test.ps1` passed after the folder move: tooling/cache regressions, Windows DPI/theme/pairing/list/dialog UI, Windows-to-TV TLS integration, receiver core tests, and shared protocol vectors. Results: `build/test-943a75e5c1c7484b8ff32fc2edca454e/`.
+- `tests/test-mobile.ps1` passed from the reorganized paths: JVM/controller/TLS suite and the same protocol vectors. Results: `build/mobile-test-32e5ff8c349846278dff12ebccbc06af/`.
 - `build.ps1 -Target All` built the TV APK, mobile APK, and EXE. The second Android build reported a compile-cache hit for both targets and still repackaged and verified both APKs.
 - Android UI instrumentation was not installed or run because `adb devices` listed no emulator. TV Java tests, the external input-field fixture, and mobile instrumentation sources all compiled from the new paths. Both Android apps compiled, shrank, packaged and passed APK signature verification.
 - Protocol format and shared test vectors: [TVText wire protocol](PROTOCOL.md) ([Russian](PROTOCOL.ru.md)). No GitHub push or release was made.
@@ -143,7 +152,7 @@
 - Mobile catalog checks cover private state, discovery credential isolation, failed pair/forget/rename/address writes, aliases and rediscovery without phantom pairings.
 - TV checks cover cursor/selection insertion, missing or rejected Paste without SetText fallback, and restoration of an initially empty/nonempty clipboard after rapid inserts or user copying.
 - Release helpers reject unexpected assets, checksum tampering and a different APK signing certificate. Tooling checks also run under Windows PowerShell 5.1.
-- `prepare-release.ps1` runs local builds, signature/version checks and selected tests; `test-compatibility.ps1` records actual API levels and unavailable environments. See [building](../building/BUILD.md) and the [compatibility matrix/manual checklist](COMPATIBILITY.md). No physical-TV result is inferred from emulator tests.
+- `prepare-release.ps1` runs local builds, signature/version checks and selected tests; `tests/test-compatibility.ps1` records actual API levels and unavailable environments. See [building](../building/BUILD.md) and the [compatibility matrix/manual checklist](COMPATIBILITY.md). No physical-TV result is inferred from emulator tests.
 
 ## Initial local 2.0.8 build — 25 October 2026 (superseded)
 
@@ -200,20 +209,20 @@ After the test-tree reorganization, the complete Windows/TV suite and the mobile
 From the project root:
 
 ```powershell
-.\test.ps1 -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
-.\test.ps1 -Shrink -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
-.\test-mobile.ps1 -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
+.\tests\test.ps1 -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
+.\tests\test.ps1 -Shrink -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
+.\tests\test-mobile.ps1 -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
 ```
 
 The device suite is restricted to an explicitly named emulator:
 
 ```powershell
-.\test-mobile.ps1 -Device emulator-5580 `
+.\tests\test-mobile.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
   -AppApk '.\dist\TVText-Mobile-2.0.9.apk'
 ```
 
-`test.ps1` checks the build helpers, compiles the C# Windows client and Kotlin TV fixture, runs local TLS/DNS-SD tests, and renders Windows Forms checks off-screen. `test-mobile.ps1` first runs JVM catalog/protocol checks; with `-Device` it additionally builds an instrumentation APK, installs the matching application APK, and runs tests inside the selected emulator. `test-tv-ui.ps1` runs the TV instrumentation suite. Both device scripts validate the adjacent APK build record and exact JAR/source hashes before installing anything.
+`tests/test.ps1` checks the build helpers, compiles the C# Windows client and Kotlin TV fixture, runs local TLS/DNS-SD tests, and renders Windows Forms checks off-screen. `tests/test-mobile.ps1` first runs JVM catalog/protocol checks; with `-Device` it additionally builds an instrumentation APK, installs the matching application APK, and runs tests inside the selected emulator. `tests/test-tv-ui.ps1` runs the TV instrumentation suite. Both device scripts validate the adjacent APK build record and exact JAR/source hashes before installing anything.
 
 ## Windows and TV coverage
 

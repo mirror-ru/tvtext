@@ -1,6 +1,6 @@
 # Android input fixture
 
-`FieldActivity.java` and `AndroidManifest.xml` define a separate test application with an EditText, requiring API 28 or newer. `test-tv-ui.ps1` builds and installs it alongside the TV instrumentation APK in the explicitly selected isolated emulator. It checks insertion while TVText is in the background, using the receiver's actual API-dependent input path, and preservation of the selected IME.
+`FieldActivity.java` and `AndroidManifest.xml` define a separate test application with an EditText, requiring API 28 or newer. `tests/test-tv-ui.ps1` builds and installs it alongside the TV instrumentation APK in the explicitly selected isolated emulator. It checks insertion while TVText is in the background, using the receiver's actual API-dependent input path, and preservation of the selected IME.
 
 The script compiles it with javac, converts classes with D8, packages with aapt2, aligns and signs it with the local build key. It has a separate package ID, needs no permissions and stays under `build/`. Do not install it on a user's TV or ship it as a release asset.
 

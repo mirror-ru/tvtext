@@ -8,16 +8,17 @@ param(
 )
 $ErrorActionPreference='Stop'
 if($Device -notmatch '^emulator-\d+$'){ throw 'TV UI tests may target only an explicitly selected isolated emulator.' }
-. (Join-Path $PSScriptRoot 'scripts\Common.ps1')
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $ProjectRoot 'scripts\Common.ps1')
 $jvm = Resolve-JvmTools $Jdk $Kotlin
 $android = Resolve-AndroidTools $Sdk
 $verifiedBuild = Resolve-TestBuild $AppApk $AppJar 'android-tv'
 $AppApk = $verifiedBuild.Apk
 $AppJar = $verifiedBuild.AppJar
 $adb = Require-File (Join-Path $Sdk 'platform-tools\adb.exe') 'Android adb.exe'
-$null = Require-File (Join-Path $PSScriptRoot '.local\signing.p12') 'APK signing key'
-$null = Require-File (Join-Path $PSScriptRoot '.local\signing-password.txt') 'APK signing password file'
-$run=Join-Path $PSScriptRoot ('build\tv-ui-test-'+[guid]::NewGuid().ToString('N'))
+$null = Require-File (Join-Path $ProjectRoot '.local\signing.p12') 'APK signing key'
+$null = Require-File (Join-Path $ProjectRoot '.local\signing-password.txt') 'APK signing password file'
+$run=Join-Path $ProjectRoot ('build\tv-ui-test-'+[guid]::NewGuid().ToString('N'))
 $classes=Join-Path $run 'classes'
 $dex=Join-Path $run 'dex'
 New-Item -ItemType Directory -Path $classes,$dex | Out-Null
@@ -26,7 +27,7 @@ $tools = Get-Item -LiteralPath $android.BuildTools
 $stdlib = $jvm.Stdlib
 $java = $jvm.Java
 $jar = $jvm.Jar
-$uiTests = Join-Path $PSScriptRoot 'tests\android-tv\instrumentation\ui'
+$uiTests = Join-Path $PSScriptRoot 'android-tv\instrumentation\ui'
 Invoke-Checked (Join-Path $Jdk 'bin\javac.exe') @('-source','8','-target','8','-Xlint:-options','-encoding','UTF-8','-classpath',"$androidJar;$stdlib;$AppJar",'-d',$classes,(Join-Path $uiTests 'ThemeDeviceTests.java'),(Join-Path $uiTests 'TestKeyboard.java'),(Join-Path $uiTests 'ExternalFieldChecks.java'))
 $testJar=Join-Path $run 'tv-ui-tests.jar'
 Invoke-Checked $jar @('cf',$testJar,'-C',$classes,'.')
@@ -39,19 +40,19 @@ foreach($file in Get-ChildItem -LiteralPath $dex -Filter '*.dex'){ Invoke-Checke
 $aligned=Join-Path $run 'aligned.apk'
 Invoke-Checked (Join-Path $tools.FullName 'zipalign.exe') @('-f','4',$unsigned,$aligned)
 $testApk=Join-Path $run 'tv-ui-tests.apk'
-Invoke-Checked $java @('-jar',(Join-Path $tools.FullName 'lib\apksigner.jar'),'sign','--ks',(Join-Path $PSScriptRoot '.local\signing.p12'),'--ks-key-alias','tvtext-local','--ks-pass',('file:'+(Join-Path $PSScriptRoot '.local\signing-password.txt')),'--v4-signing-enabled','false','--out',$testApk,$aligned)
+Invoke-Checked $java @('-jar',(Join-Path $tools.FullName 'lib\apksigner.jar'),'sign','--ks',(Join-Path $ProjectRoot '.local\signing.p12'),'--ks-key-alias','tvtext-local','--ks-pass',('file:'+(Join-Path $ProjectRoot '.local\signing-password.txt')),'--v4-signing-enabled','false','--out',$testApk,$aligned)
 $fieldClasses=Join-Path $run 'field-classes';$fieldDex=Join-Path $run 'field-dex'
 New-Item -ItemType Directory -Path $fieldClasses,$fieldDex | Out-Null
-Invoke-Checked (Join-Path $Jdk 'bin\javac.exe') @('-source','8','-target','8','-Xlint:-options','-encoding','UTF-8','-classpath',$androidJar,'-d',$fieldClasses,(Join-Path $PSScriptRoot 'tests\android-tv\fixtures\FieldActivity.java'))
+Invoke-Checked (Join-Path $Jdk 'bin\javac.exe') @('-source','8','-target','8','-Xlint:-options','-encoding','UTF-8','-classpath',$androidJar,'-d',$fieldClasses,(Join-Path $PSScriptRoot 'android-tv\fixtures\FieldActivity.java'))
 $fieldJar=Join-Path $run 'field.jar'
 Invoke-Checked $jar @('cf',$fieldJar,'-C',$fieldClasses,'.')
 Invoke-Checked $java @('-cp',(Join-Path $tools.FullName 'lib\d8.jar'),'com.android.tools.r8.D8','--min-api','28','--lib',$androidJar,'--output',$fieldDex,$fieldJar)
 $fieldUnsigned=Join-Path $run 'field-unsigned.apk'
-Invoke-Checked (Join-Path $tools.FullName 'aapt2.exe') @('link','--manifest',(Join-Path $PSScriptRoot 'tests\android-tv\fixtures\AndroidManifest.xml'),'-I',$androidJar,'-o',$fieldUnsigned)
+Invoke-Checked (Join-Path $tools.FullName 'aapt2.exe') @('link','--manifest',(Join-Path $PSScriptRoot 'android-tv\fixtures\AndroidManifest.xml'),'-I',$androidJar,'-o',$fieldUnsigned)
 foreach($file in Get-ChildItem -LiteralPath $fieldDex -Filter '*.dex'){ Invoke-Checked $jar @('uf',$fieldUnsigned,'-C',$fieldDex,$file.Name) }
 $fieldAligned=Join-Path $run 'field-aligned.apk';$fieldApk=Join-Path $run 'field.apk'
 Invoke-Checked (Join-Path $tools.FullName 'zipalign.exe') @('-f','4',$fieldUnsigned,$fieldAligned)
-Invoke-Checked $java @('-jar',(Join-Path $tools.FullName 'lib\apksigner.jar'),'sign','--ks',(Join-Path $PSScriptRoot '.local\signing.p12'),'--ks-key-alias','tvtext-local','--ks-pass',('file:'+(Join-Path $PSScriptRoot '.local\signing-password.txt')),'--v4-signing-enabled','false','--out',$fieldApk,$fieldAligned)
+Invoke-Checked $java @('-jar',(Join-Path $tools.FullName 'lib\apksigner.jar'),'sign','--ks',(Join-Path $ProjectRoot '.local\signing.p12'),'--ks-key-alias','tvtext-local','--ks-pass',('file:'+(Join-Path $ProjectRoot '.local\signing-password.txt')),'--v4-signing-enabled','false','--out',$fieldApk,$fieldAligned)
 $adb=Join-Path $Sdk 'platform-tools\adb.exe'
 Invoke-Checked $adb @('-s',$Device,'install','-r',$AppApk)
 Invoke-Checked $adb @('-s',$Device,'install','-r',$testApk)

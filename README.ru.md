@@ -60,15 +60,15 @@ TVText передаёт текст с Windows-ПК или телефона/пл�
 ## Тесты
 
 ```powershell
-.\test.ps1 -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
-.\test.ps1 -Shrink -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
-.\test-mobile.ps1 -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
+.\tests\test.ps1 -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
+.\tests\test.ps1 -Shrink -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
+.\tests\test-mobile.ps1 -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
 ```
 
 Для полноценного Android UI/instrumentation-прогона укажите отдельный эмулятор и APK релизной сборки:
 
 ```powershell
-.\test-mobile.ps1 -Device emulator-5580 `
+.\tests\test-mobile.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
   -AppApk '.\dist\TVText-Mobile-2.0.10.apk'
 ```
@@ -106,13 +106,12 @@ tests/android-mobile/  ядро, instrumentation и TLS-фикстура
 tests/windows/         core, integration, UI и runner
 tests/shared/          общие эталонные векторы протокола
 tests/tooling/         проверки сборщика и соответствия артефактов
+tests/test*.ps1        точки запуска Windows-, Android- и compatibility-тестов
 scripts/               общие функции сборки и тестов
 version.json           версия приложений и код версии Android
 toolchain.json         версии Android/JVM-инструментов
 build.ps1              сборка всех или одного компонентов
-test.ps1               тесты Windows/ТВ
-test-mobile.ps1        мобильные JVM- и device-тесты
-test-tv-ui.ps1         device-тесты ТВ
+prepare-release.ps1    проверка и сборка локального кандидата релиза
 ```
 
 Документация проекта и пользователя: [README](README.md), [руководство](docs/guides/USER_GUIDE.ru.md), [английское руководство](docs/guides/USER_GUIDE.md), [отчёт о тестах](docs/testing/TESTS.ru.md) и [английский отчёт о тестах](docs/testing/TESTS.md). Журналы изменений по платформам находятся в `docs/changes/`.

@@ -7,7 +7,8 @@ param(
     [string]$Kotlin = 'C:\Program Files\Android\Android Studio\plugins\Kotlin\kotlinc'
 )
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'scripts\Common.ps1')
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $ProjectRoot 'scripts\Common.ps1')
 $version = Read-ProjectVersion
 $adb = Require-File (Join-Path $Sdk 'platform-tools\adb.exe') 'Android adb.exe'
 $tv = Join-Path $Artifacts "TVText-TV-$($version.Name).apk"
@@ -15,7 +16,7 @@ $mobile = Join-Path $Artifacts "TVText-Mobile-$($version.Name).apk"
 $null = Resolve-TestBuild $tv '' 'android-tv'
 $null = Resolve-TestBuild $mobile '' 'android-mobile'
 foreach ($id in $Device) { if ($id -notmatch '^emulator-\d+$') { throw 'Compatibility tests accept only isolated emulators.' } }
-if (!$Output) { $Output = Join-Path $PSScriptRoot ('build\compatibility-' + [guid]::NewGuid().ToString('N') + '.json') }
+if (!$Output) { $Output = Join-Path $ProjectRoot ('build\compatibility-' + [guid]::NewGuid().ToString('N') + '.json') }
 $Output = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Output)
 if (Test-Path -LiteralPath $Output) { throw 'Compatibility report already exists.' }
 $results = @(); $failure = $null

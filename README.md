@@ -60,15 +60,15 @@ The first build creates an APK signing key in `.local/`. Keep `signing.p12` and 
 ## Tests
 
 ```powershell
-.\test.ps1 -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
-.\test.ps1 -Shrink -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
-.\test-mobile.ps1 -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
+.\tests\test.ps1 -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
+.\tests\test.ps1 -Shrink -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
+.\tests\test-mobile.ps1 -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk'
 ```
 
 For the real Android UI/instrumentation suite, pass an explicitly named isolated emulator and a release APK:
 
 ```powershell
-.\test-mobile.ps1 -Device emulator-5580 `
+.\tests\test-mobile.ps1 -Device emulator-5580 `
   -Sdk 'C:\Users\YOUR_USER\AppData\Local\Android\Sdk' `
   -AppApk '.\dist\TVText-Mobile-2.0.10.apk'
 ```
@@ -106,13 +106,12 @@ tests/android-mobile/  mobile core, instrumentation, and TLS fixture
 tests/windows/         Windows core, integration, UI, and runner
 tests/shared/          protocol compatibility vectors
 tests/tooling/         build and artifact consistency checks
+tests/test*.ps1       Windows, Android and compatibility test entry points
 scripts/               shared build/test helpers
 version.json           application version and Android version code
 toolchain.json         pinned Android/JVM tools
 build.ps1              build all or one target
-test.ps1               Windows/TV tests
-test-mobile.ps1        mobile JVM and device tests
-test-tv-ui.ps1         TV device tests
+prepare-release.ps1    validate and collect a local release candidate
 ```
 
 Project and user documentation: [Russian README](README.ru.md), [user guide](docs/guides/USER_GUIDE.md), [Russian user guide](docs/guides/USER_GUIDE.ru.md), [test report](docs/testing/TESTS.md), and [Russian test report](docs/testing/TESTS.ru.md). Platform change logs are in `docs/changes/`.
