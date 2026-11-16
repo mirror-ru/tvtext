@@ -4,6 +4,13 @@
 
 TVText sends text from a Windows computer or an Android phone/tablet to the active text field on Google TV. Devices discover each other over the local network with mDNS/DNS-SD; text is sent through a TLS connection with certificate pinning. TVText has no cloud service and keeps no message history.
 
+## Quick start
+
+1. Install `TVText-TV` on the TV and `TVText-Mobile` on Android or `TVText` on Windows. Keep `.exe.config` beside the Windows EXE. Connect the devices to the same Wi-Fi network.
+2. Open TVText on the TV and, if prompted, enable it in Accessibility settings. Choose **Connect device** and leave the code on screen.
+3. Open the sender app, select the TV, and choose **Connect**. Enter the TV code and compare the certificate fingerprint.
+4. On the TV, open the app, text field, and on-screen keyboard. Enter text in TVText and choose **Send to TV** or press Enter.
+
 ## Apps
 
 | App | Folder | Platform |
