@@ -7,7 +7,7 @@ namespace TvText
 {
     internal static class UiText
     {
-        private static readonly Dictionary<string,string> ru = new Dictionary<string,string>
+        private static readonly Dictionary<string, string> ru = new Dictionary<string, string>
         {
             {"app_title", "TVText"},
             {"connection_changed", "Подключение изменено в другом окне. Перезапустите TVText."},
@@ -103,7 +103,7 @@ namespace TvText
             {"discovery_failed_detail", "Не удалось найти телевизоры: {0}. Проверьте подключение к Wi-Fi."}
         };
 
-        private static readonly Dictionary<string,string> en = new Dictionary<string,string>
+        private static readonly Dictionary<string, string> en = new Dictionary<string, string>
         {
             {"app_title", "TVText"},
             {"connection_changed", "The connection changed in another window. Restart TVText."},
@@ -217,24 +217,24 @@ namespace TvText
         internal static string T(string key, params object[] args)
         {
             string value;
-            Dictionary<string,string> source = Current == "en" ? en : ru;
+            Dictionary<string, string> source = Current == "en" ? en : ru;
             if (!source.TryGetValue(key, out value)) value = key;
             return args == null || args.Length == 0 ? value : String.Format(CultureInfo.CurrentCulture, value, args);
         }
 
         internal static string ResponseMessage(int code)
         {
-            switch(code)
+            switch (code)
             {
-                case 0:return String.Empty;
-                case 1:return T("need_pairing");
-                case 2:return T("pair_closed");
-                case 3:return T("bad_pin");
-                case 4:return T("no_field");
-                case 5:return T("receiver_disabled");
-                case 6:return T("bad_request");
-                case 9:return T("send_no_confirmation");
-                default:return T("transport_bad_reply");
+                case 0: return String.Empty;
+                case 1: return T("need_pairing");
+                case 2: return T("pair_closed");
+                case 3: return T("bad_pin");
+                case 4: return T("no_field");
+                case 5: return T("receiver_disabled");
+                case 6: return T("bad_request");
+                case 9: return T("send_no_confirmation");
+                default: return T("transport_bad_reply");
             }
         }
 

@@ -4,6 +4,7 @@
 *.kt text eol=lf
 *.java text eol=lf
 *.ps1 text eol=lf
+*.editorconfig text eol=lf
 *.xml text eol=lf
 *.md text eol=lf
 

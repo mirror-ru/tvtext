@@ -12,7 +12,7 @@ namespace TvText
     {
         public string Name, Endpoint, DeviceId;
         internal string LocalName;
-        public override string ToString() { return String.IsNullOrEmpty(LocalName)?Name:LocalName; }
+        public override string ToString() { return String.IsNullOrEmpty(LocalName) ? Name : LocalName; }
     }
 
     // Uses Windows' DNS Client service; Bonjour and a separate multicast listener
@@ -27,19 +27,19 @@ namespace TvText
         private bool stopped;
         private uint failure;
 
-        internal static int PendingOperations{get{return Roots.Count;}}
-        public static async Task<List<DiscoveredTv>> FindAsync(int milliseconds,CancellationToken cancellationToken=default(CancellationToken))
+        internal static int PendingOperations { get { return Roots.Count; } }
+        public static async Task<List<DiscoveredTv>> FindAsync(int milliseconds, CancellationToken cancellationToken = default(CancellationToken))
         {
-            if(milliseconds<0)throw new ArgumentOutOfRangeException("milliseconds");
+            if (milliseconds < 0) throw new ArgumentOutOfRangeException("milliseconds");
             cancellationToken.ThrowIfCancellationRequested();
             using (Discovery search = new Discovery())
             {
-                search.Start();await Task.Delay(milliseconds,cancellationToken).ConfigureAwait(false);
+                search.Start(); await Task.Delay(milliseconds, cancellationToken).ConfigureAwait(false);
                 lock (search.gate)
                 {
                     if (search.failure != 0) throw new InvalidOperationException(UiText.T("discovery_failed"));
-                    List<DiscoveredTv> result=new List<DiscoveredTv>(search.found.Values);
-                    result.Sort(delegate(DiscoveredTv a,DiscoveredTv b){int name=StringComparer.CurrentCultureIgnoreCase.Compare(a.Name,b.Name);if(name!=0)return name;int id=StringComparer.Ordinal.Compare(a.DeviceId,b.DeviceId);return id!=0?id:StringComparer.Ordinal.Compare(a.Endpoint,b.Endpoint);});
+                    List<DiscoveredTv> result = new List<DiscoveredTv>(search.found.Values);
+                    result.Sort(delegate (DiscoveredTv a, DiscoveredTv b) { int name = StringComparer.CurrentCultureIgnoreCase.Compare(a.Name, b.Name); if (name != 0) return name; int id = StringComparer.Ordinal.Compare(a.DeviceId, b.DeviceId); return id != 0 ? id : StringComparer.Ordinal.Compare(a.Endpoint, b.Endpoint); });
                     return result;
                 }
             }
@@ -58,8 +58,8 @@ namespace TvText
                 resolve = new Operation(this, false, name); operations.Add(resolve);
             }
             resolve.Start();
-            bool cancel; lock(gate) cancel = stopped;
-            if(cancel) resolve.Cancel();
+            bool cancel; lock (gate) cancel = stopped;
+            if (cancel) resolve.Cancel();
         }
         private void Add(DiscoveredTv tv)
         {
@@ -142,29 +142,29 @@ namespace TvText
         {
             Instance instance = (Instance)Marshal.PtrToStructure(pointer, typeof(Instance));
             if (instance.Ip4 == IntPtr.Zero && instance.Ip6 == IntPtr.Zero || instance.Port == 0 || instance.PropertyCount > 64) return null;
-            string id = "", version = "";bool ipv4Only=false;
+            string id = "", version = ""; bool ipv4Only = false;
             for (int i = 0; i < instance.PropertyCount && instance.Keys != IntPtr.Zero && instance.Values != IntPtr.Zero; i++)
             {
                 string key = Marshal.PtrToStringUni(Marshal.ReadIntPtr(instance.Keys, i * IntPtr.Size));
                 string value = Marshal.PtrToStringUni(Marshal.ReadIntPtr(instance.Values, i * IntPtr.Size)) ?? "";
                 if (key == "id") id = value; if (key == "v") version = value;
-                if(key=="ipv4-only")ipv4Only=value=="1";
+                if (key == "ipv4-only") ipv4Only = value == "1";
             }
             Guid parsed;
             if (version != "1" || !Guid.TryParse(id, out parsed)) return null;
-            if(ipv4Only&&instance.Ip4==IntPtr.Zero)return null;
+            if (ipv4Only && instance.Ip4 == IntPtr.Zero) return null;
             IPAddress address;
-            if(instance.Ip4!=IntPtr.Zero){byte[] ip=new byte[4];Marshal.Copy(instance.Ip4,ip,0,4);address=new IPAddress(ip);}
+            if (instance.Ip4 != IntPtr.Zero) { byte[] ip = new byte[4]; Marshal.Copy(instance.Ip4, ip, 0, 4); address = new IPAddress(ip); }
             else
             {
-                byte[] ip=new byte[16];Marshal.Copy(instance.Ip6,ip,0,16);address=new IPAddress(ip);
-                if(address.IsIPv6LinkLocal)address.ScopeId=instance.InterfaceIndex;
+                byte[] ip = new byte[16]; Marshal.Copy(instance.Ip6, ip, 0, 16); address = new IPAddress(ip);
+                if (address.IsIPv6LinkLocal) address.ScopeId = instance.InterfaceIndex;
             }
             string name = (Marshal.PtrToStringUni(instance.Name) ?? "TVText").TrimEnd('.');
             string suffix = "." + ServiceType;
             if (!name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) return null;
             name = name.Substring(0, name.Length - suffix.Length);
-            return new DiscoveredTv { Name = name, DeviceId = parsed.ToString(), Endpoint = Client.FormatEndpoint(address,instance.Port) };
+            return new DiscoveredTv { Name = name, DeviceId = parsed.ToString(), Endpoint = Client.FormatEndpoint(address, instance.Port) };
         }
 
         private sealed class Operation
@@ -187,8 +187,13 @@ namespace TvText
                 lock (lifetime) calls++;
                 try
                 {
-                    Request request = new Request { Version = 1, QueryName = query,
-                        Callback = Marshal.GetFunctionPointerForDelegate(browse ? BrowseCallback : ResolveCallback), Context = id };
+                    Request request = new Request
+                    {
+                        Version = 1,
+                        QueryName = query,
+                        Callback = Marshal.GetFunctionPointerForDelegate(browse ? BrowseCallback : ResolveCallback),
+                        Context = id
+                    };
                     uint status = browse ? DnsServiceBrowse(ref request, cancel) : DnsServiceResolve(ref request, cancel);
                     if (status != 9506) Complete();
                     return status;

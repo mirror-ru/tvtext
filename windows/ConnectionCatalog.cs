@@ -9,7 +9,7 @@ namespace TvText
         internal static Connection FindProfile(List<Connection> profiles, DiscoveredTv selected)
         {
             if (selected == null) return new Connection();
-            return profiles.Find(delegate(Connection profile) { return profile.DeviceId == selected.DeviceId; })
+            return profiles.Find(delegate (Connection profile) { return profile.DeviceId == selected.DeviceId; })
                 ?? new Connection();
         }
 
@@ -55,7 +55,7 @@ namespace TvText
 
         internal static int SelectionIndex(List<object> devices, string desiredId)
         {
-            int index = devices.FindIndex(delegate(object item) { return ((DiscoveredTv)item).DeviceId == desiredId; });
+            int index = devices.FindIndex(delegate (object item) { return ((DiscoveredTv)item).DeviceId == desiredId; });
             return index >= 0 ? index : devices.Count > 0 ? 0 : -1;
         }
     }

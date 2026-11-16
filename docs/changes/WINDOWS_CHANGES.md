@@ -1,5 +1,14 @@
 # Windows EXE changes
 
+## 16 November 2026 — re-review split Windows transport (local)
+
+- Restored the `System` namespace import required by the separated connection resolver. The complete Windows build and Windows/TV regression suite passed.
+
+## 16 November 2026 — separate transport and profile responsibilities (local)
+
+- Split the former `Transport.cs` into `Client.cs` for TCP/TLS and wire protocol, `Connection.cs` for encrypted connection profiles, and `ConnectionResolver.cs` for verified discovery recovery. The public client/profile behavior and persisted format are unchanged.
+- Added root `.editorconfig` conventions and formatted the Windows C# sources consistently; this is whitespace-only apart from the transport file split.
+
 ## 16 November 2026 — separate main-form interaction workflows (local)
 
 - Moved device selection, pairing, removal, discovery, sending and transport error presentation out of `MainForm.cs` into `MainForm.Operations.cs`. This is still the same form and keeps its existing UI event ownership; the change only groups the coordinator logic in its own source file.
