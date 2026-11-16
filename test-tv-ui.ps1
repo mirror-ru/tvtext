@@ -26,14 +26,15 @@ $tools = Get-Item -LiteralPath $android.BuildTools
 $stdlib = $jvm.Stdlib
 $java = $jvm.Java
 $jar = $jvm.Jar
-Invoke-Checked (Join-Path $Jdk 'bin\javac.exe') @('-source','8','-target','8','-Xlint:-options','-encoding','UTF-8','-classpath',"$androidJar;$stdlib;$AppJar",'-d',$classes,(Join-Path $PSScriptRoot 'tests\android-tv\ui\ThemeDeviceTests.java'),(Join-Path $PSScriptRoot 'tests\android-tv\ui\TestKeyboard.java'),(Join-Path $PSScriptRoot 'tests\android-tv\ui\ExternalFieldChecks.java'))
+$uiTests = Join-Path $PSScriptRoot 'tests\android-tv\instrumentation\ui'
+Invoke-Checked (Join-Path $Jdk 'bin\javac.exe') @('-source','8','-target','8','-Xlint:-options','-encoding','UTF-8','-classpath',"$androidJar;$stdlib;$AppJar",'-d',$classes,(Join-Path $uiTests 'ThemeDeviceTests.java'),(Join-Path $uiTests 'TestKeyboard.java'),(Join-Path $uiTests 'ExternalFieldChecks.java'))
 $testJar=Join-Path $run 'tv-ui-tests.jar'
 Invoke-Checked $jar @('cf',$testJar,'-C',$classes,'.')
 Invoke-Checked $java @('-cp',(Join-Path $tools.FullName 'lib\d8.jar'),'com.android.tools.r8.D8','--min-api','28','--lib',$androidJar,'--classpath',$AppJar,'--classpath',$stdlib,'--output',$dex,$testJar)
 $unsigned=Join-Path $run 'unsigned.apk'
 $resources=Join-Path $run 'resources.zip'
-Invoke-Checked (Join-Path $tools.FullName 'aapt2.exe') @('compile','--dir',(Join-Path $PSScriptRoot 'tests\android-tv\ui\res'),'-o',$resources)
-Invoke-Checked (Join-Path $tools.FullName 'aapt2.exe') @('link','--manifest',(Join-Path $PSScriptRoot 'tests\android-tv\ui\AndroidManifest.xml'),'-I',$androidJar,'--min-sdk-version','28','--target-sdk-version','34','-o',$unsigned,$resources)
+Invoke-Checked (Join-Path $tools.FullName 'aapt2.exe') @('compile','--dir',(Join-Path $uiTests 'res'),'-o',$resources)
+Invoke-Checked (Join-Path $tools.FullName 'aapt2.exe') @('link','--manifest',(Join-Path $uiTests 'AndroidManifest.xml'),'-I',$androidJar,'--min-sdk-version','28','--target-sdk-version','34','-o',$unsigned,$resources)
 foreach($file in Get-ChildItem -LiteralPath $dex -Filter '*.dex'){ Invoke-Checked $jar @('uf',$unsigned,'-C',$dex,$file.Name) }
 $aligned=Join-Path $run 'aligned.apk'
 Invoke-Checked (Join-Path $tools.FullName 'zipalign.exe') @('-f','4',$unsigned,$aligned)
@@ -41,12 +42,12 @@ $testApk=Join-Path $run 'tv-ui-tests.apk'
 Invoke-Checked $java @('-jar',(Join-Path $tools.FullName 'lib\apksigner.jar'),'sign','--ks',(Join-Path $PSScriptRoot '.local\signing.p12'),'--ks-key-alias','tvtext-local','--ks-pass',('file:'+(Join-Path $PSScriptRoot '.local\signing-password.txt')),'--v4-signing-enabled','false','--out',$testApk,$aligned)
 $fieldClasses=Join-Path $run 'field-classes';$fieldDex=Join-Path $run 'field-dex'
 New-Item -ItemType Directory -Path $fieldClasses,$fieldDex | Out-Null
-Invoke-Checked (Join-Path $Jdk 'bin\javac.exe') @('-source','8','-target','8','-Xlint:-options','-encoding','UTF-8','-classpath',$androidJar,'-d',$fieldClasses,(Join-Path $PSScriptRoot 'tests\android-tv\fixture\FieldActivity.java'))
+Invoke-Checked (Join-Path $Jdk 'bin\javac.exe') @('-source','8','-target','8','-Xlint:-options','-encoding','UTF-8','-classpath',$androidJar,'-d',$fieldClasses,(Join-Path $PSScriptRoot 'tests\android-tv\fixtures\FieldActivity.java'))
 $fieldJar=Join-Path $run 'field.jar'
 Invoke-Checked $jar @('cf',$fieldJar,'-C',$fieldClasses,'.')
 Invoke-Checked $java @('-cp',(Join-Path $tools.FullName 'lib\d8.jar'),'com.android.tools.r8.D8','--min-api','28','--lib',$androidJar,'--output',$fieldDex,$fieldJar)
 $fieldUnsigned=Join-Path $run 'field-unsigned.apk'
-Invoke-Checked (Join-Path $tools.FullName 'aapt2.exe') @('link','--manifest',(Join-Path $PSScriptRoot 'tests\android-tv\fixture\AndroidManifest.xml'),'-I',$androidJar,'-o',$fieldUnsigned)
+Invoke-Checked (Join-Path $tools.FullName 'aapt2.exe') @('link','--manifest',(Join-Path $PSScriptRoot 'tests\android-tv\fixtures\AndroidManifest.xml'),'-I',$androidJar,'-o',$fieldUnsigned)
 foreach($file in Get-ChildItem -LiteralPath $fieldDex -Filter '*.dex'){ Invoke-Checked $jar @('uf',$fieldUnsigned,'-C',$fieldDex,$file.Name) }
 $fieldAligned=Join-Path $run 'field-aligned.apk';$fieldApk=Join-Path $run 'field.apk'
 Invoke-Checked (Join-Path $tools.FullName 'zipalign.exe') @('-f','4',$fieldUnsigned,$fieldAligned)

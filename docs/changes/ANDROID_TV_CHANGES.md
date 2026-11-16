@@ -1,5 +1,15 @@
 # Android TV changes
 
+## 16 November 2026 — shared protocol compatibility vector (local)
+
+- Added the shared golden request/response vector to TV receiver core tests, checking exact serialized bytes and parsing independently of the other client implementations.
+- Organized TV tests into `core/`, `instrumentation/ui/`, and `fixtures/`; updated the runner paths without dropping test scenarios.
+
+## 16 November 2026 — main screen construction refactor (local)
+
+- Split main screen assembly into header, status, TV identity, pairing, connection actions, and footer builders. Split status refresh into focused rendering methods for status, actions, TV identity, and pairing; lifecycle and focus selection remain in the activity setup flow.
+- Split the connected-device dialog into header, empty state, device rows, scrolling list, and focus navigation helpers. Deletion confirmation and DPAD focus movement stay in the same order.
+
 ## 27 October 2026 — local version 2.0.10 rebuild
 
 - Updated the shared version to 2.0.10 / Android code 30. Receiver behavior is unchanged; the known Android 12 background clipboard limitation remains documented.

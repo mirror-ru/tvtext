@@ -8,7 +8,22 @@ import java.util.concurrent.*
 import javax.net.ssl.*
 
 object CoreTests {
+    private fun verifyProtocolVectors(path: String) {
+        val vectors = File(path).readLines().filter { it.isNotBlank() && !it.startsWith("#") }
+            .associate { it.substringBefore('=').trim() to it.substringAfter('=').trim() }
+        fun bytes(name: String) = vectors[name]!!.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        val request = ByteArrayOutputStream()
+        Protocol.writeRequest(request, Protocol.Request(3, "k", "", "AЖ😀\n"))
+        check(request.toByteArray().contentEquals(bytes("request")))
+        check(Protocol.readRequest(ByteArrayInputStream(bytes("request"))) == Protocol.Request(3, "k", "", "AЖ😀\n"))
+        val response = ByteArrayOutputStream()
+        Protocol.writeResponse(response, Protocol.Response(0, "OK", true, "t", "app", ""))
+        check(response.toByteArray().contentEquals(bytes("response")))
+        check(Protocol.readResponse(ByteArrayInputStream(bytes("response"))) == Protocol.Response(0, "OK", true, "t", "app", ""))
+    }
+
     @JvmStatic fun main(args: Array<String>) {
+        if (args.size >= 4) verifyProtocolVectors(args[3])
         ReceiverStatusTests.run()
         var stored = ""
         var time = 1000L

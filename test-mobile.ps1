@@ -24,21 +24,22 @@ if ($Device) {
 }
 $run = Join-Path $PSScriptRoot ('build\mobile-test-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $run | Out-Null
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'tests\shared\protocol\v1-vectors.txt') -Destination (Join-Path $run 'protocol-v1-vectors.txt')
 $java = $jvm.Java
 $jar = $jvm.Jar
 $stdlib = $jvm.Stdlib
 $protocol = Join-Path $PSScriptRoot 'android-tv\src\com\tvtext\app\Protocol.kt'
 $sender = Join-Path $PSScriptRoot 'android-mobile\src\com\tvtext\mobile\app\SenderClient.kt'
-$fixtureSource = Join-Path $PSScriptRoot 'tests\android-mobile\PhoneFixture.kt'
+$fixtureSource = Join-Path $PSScriptRoot 'tests\android-mobile\fixtures\PhoneFixture.kt'
 $fixture = Join-Path $run 'fixture.p12'
 Invoke-Checked (Join-Path $Jdk 'bin\keytool.exe') @('-J-Dkeystore.pkcs12.legacy=true','-genkeypair','-keystore',$fixture,'-storetype','PKCS12','-storepass','fixture-only','-alias','fixture','-keyalg','RSA','-keysize','2048','-validity','2','-dname','CN=TVText Mobile Test Fixture','-noprompt')
 $catalogSource = Join-Path $PSScriptRoot 'android-mobile\src\com\tvtext\mobile\app\ConnectionCatalog.kt'
-$catalogTests = Join-Path $PSScriptRoot 'tests\android-mobile\ConnectionCatalogTests.kt'
+$catalogTests = Join-Path $PSScriptRoot 'tests\android-mobile\core\ConnectionCatalogTests.kt'
 $controllerSource = Join-Path $PSScriptRoot 'android-mobile\src\com\tvtext\mobile\app\SenderController.kt'
-$controllerTests = Join-Path $PSScriptRoot 'tests\android-mobile\SenderControllerTests.kt'
+$controllerTests = Join-Path $PSScriptRoot 'tests\android-mobile\core\SenderControllerTests.kt'
 $core = Join-Path $run 'mobile-core-tests.jar'
-Invoke-Checked $java @('-cp',(Join-Path $Kotlin 'lib\*'),'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler','-no-reflect','-no-stdlib','-jvm-target','1.8','-classpath',$stdlib,'-include-runtime','-kotlin-home',$Kotlin,'-d',$core,$protocol,$sender,$catalogSource,$catalogTests,$controllerSource,$controllerTests,$fixtureSource,(Join-Path $PSScriptRoot 'tests\android-mobile\MobileCoreTests.kt'))
-Invoke-Checked $java @('-cp',$core,'local.tvtext.mobiletests.MobileCoreTests',$fixture)
+Invoke-Checked $java @('-cp',(Join-Path $Kotlin 'lib\*'),'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler','-no-reflect','-no-stdlib','-jvm-target','1.8','-classpath',$stdlib,'-include-runtime','-kotlin-home',$Kotlin,'-d',$core,$protocol,$sender,$catalogSource,$catalogTests,$controllerSource,$controllerTests,$fixtureSource,(Join-Path $PSScriptRoot 'tests\android-mobile\core\MobileCoreTests.kt'))
+Invoke-Checked $java @('-cp',$core,'local.tvtext.mobiletests.MobileCoreTests',$fixture,(Join-Path $run 'protocol-v1-vectors.txt'))
 if($Device) {
     $androidJar = $android.AndroidJar
     $tools = Get-Item -LiteralPath $android.BuildTools
@@ -47,12 +48,12 @@ if($Device) {
     $assets = Join-Path $run 'assets'
     New-Item -ItemType Directory -Path $classes,$dex,$assets | Out-Null
     Copy-Item -LiteralPath $fixture -Destination $assets
-    Invoke-Checked $java @('-cp',(Join-Path $Kotlin 'lib\*'),'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler','-no-reflect','-no-stdlib','-jvm-target','1.8','-classpath',"$androidJar;$stdlib;$AppJar",'-d',$classes,$protocol,$fixtureSource,(Join-Path $PSScriptRoot 'tests\android-mobile\MobileDeviceTests.kt'))
+    Invoke-Checked $java @('-cp',(Join-Path $Kotlin 'lib\*'),'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler','-no-reflect','-no-stdlib','-jvm-target','1.8','-classpath',"$androidJar;$stdlib;$AppJar",'-d',$classes,$protocol,$fixtureSource,(Join-Path $PSScriptRoot 'tests\android-mobile\instrumentation\MobileDeviceTests.kt'))
     $testJar = Join-Path $run 'device-tests.jar'
     Invoke-Checked $jar @('cf',$testJar,'-C',$classes,'.')
     Invoke-Checked $java @('-cp',(Join-Path $tools.FullName 'lib\d8.jar'),'com.android.tools.r8.D8','--min-api','28','--lib',$androidJar,'--classpath',$AppJar,'--output',$dex,$testJar,$stdlib)
     $unsigned = Join-Path $run 'unsigned.apk'
-    Invoke-Checked (Join-Path $tools.FullName 'aapt2.exe') @('link','--manifest',(Join-Path $PSScriptRoot 'tests\android-mobile\AndroidManifest.xml'),'-I',$androidJar,'-A',$assets,'--min-sdk-version','28','--target-sdk-version','34','-o',$unsigned)
+    Invoke-Checked (Join-Path $tools.FullName 'aapt2.exe') @('link','--manifest',(Join-Path $PSScriptRoot 'tests\android-mobile\instrumentation\AndroidManifest.xml'),'-I',$androidJar,'-A',$assets,'--min-sdk-version','28','--target-sdk-version','34','-o',$unsigned)
     foreach($file in Get-ChildItem -LiteralPath $dex -Filter '*.dex') { Invoke-Checked $jar @('uf',$unsigned,'-C',$dex,$file.Name) }
     $aligned = Join-Path $run 'aligned.apk'
     Invoke-Checked (Join-Path $tools.FullName 'zipalign.exe') @('-f','4',$unsigned,$aligned)

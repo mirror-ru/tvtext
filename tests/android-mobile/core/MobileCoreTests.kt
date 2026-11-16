@@ -10,6 +10,11 @@ import java.util.concurrent.TimeUnit
 
 object MobileCoreTests {
     @JvmStatic fun main(args: Array<String>) {
+        val vectors = File(args[1]).readLines().filter { it.isNotBlank() && !it.startsWith("#") }
+            .associate { it.substringBefore('=').trim() to it.substringAfter('=').trim() }
+        fun vector(name: String) = vectors[name]!!.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        check(Wire.request(3, "k", "", "AЖ😀\n").contentEquals(vector("request")))
+        check(Wire.reply(ByteArrayInputStream(vector("response"))) == Reply(0, true, "OK", "t", "app", ""))
         ConnectionCatalogTests.run()
         SenderControllerTests.run()
         val sample="Привет с телефона 😀 中文 & %\nВторая строка"

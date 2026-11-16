@@ -1,5 +1,20 @@
 # Android phone/tablet changes
 
+## 16 November 2026 — keep the complete input card visible with the keyboard
+
+- When the main text editor opens the IME, the screen now scrolls just enough to reveal the full text card above it. The TV list, device actions, and language/theme controls keep their normal layout; nothing is hidden or collapsed.
+- Added a device instrumentation check that opens the keyboard and waits until both the editor and its full card are within the visible window area.
+
+## 16 November 2026 — transport diagnostics and protocol vectors (local)
+
+- Added localized failure messages for TCP connect, TLS handshake, delivery write and response read stages. The UI maps the stage without exposing addresses or sensitive protocol data; uncertain send handling still preserves the warning against blind retries.
+- Added the shared request/response golden vector to the mobile wire tests to compare exact request bytes and parse the same response used by the TV and Windows suites.
+- Grouped mobile JVM tests, instrumentation, and TLS fixtures under `core/`, `instrumentation/`, and `fixtures/`; test commands retain the same behavior.
+
+## 16 November 2026 — main screen construction refactor (local)
+
+- Split screen construction into header, workspace, TV list card, and composer builders. The composer delegates to separate text-card, send-button, and footer builders. Extracted TV row creation and the empty-list presentation from list rendering; existing selection, focus, keyboard, and button behavior is preserved.
+
 ## 27 October 2026 — local version 2.0.10 rebuild
 
 - Updated the shared version to 2.0.10 / Android code 30, including the current address recovery and deferred verification fixes. Functional results for those changes are recorded in the test report.

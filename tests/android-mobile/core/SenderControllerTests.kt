@@ -30,12 +30,13 @@ object SenderControllerTests {
     }
     private class Network : SenderController.Transport {
         var error: Exception? = null
+        var probeError: Exception? = null
         var code = 0
         var operation: Operation? = null
         val commands = mutableListOf<Int>()
         val destinations = mutableListOf<Tv>()
         val payloads = mutableListOf<String>()
-        override fun probe(tv: Tv, operation: Operation) = tv.fingerprint
+        override fun probe(tv: Tv, operation: Operation): String { probeError?.let { throw it }; return tv.fingerprint }
         override fun exchange(tv: Tv, command: Int, credential: String, id: String, text: String, operation: Operation): Reply {
             this.operation = operation; commands.add(command); destinations.add(tv); payloads.add(text)
             error?.let { throw it }
@@ -236,6 +237,15 @@ object SenderControllerTests {
                 "Discovery-stop failure left the worker or request active"
             }
         }
-        println("PASS: independent mobile scenarios: draft preservation, no replay, address/save errors, pin rejection, stale discovery, destroyed callbacks, cancellation before delayed/failed discovery shutdown, idempotent destruction, unpair and confirmed pairing")
+        for ((stage,key) in listOf(
+            NetworkStage.CONNECT to "network_connect_failed", NetworkStage.TLS to "network_tls_failed",
+            NetworkStage.DELIVERY to "network_delivery_failed", NetworkStage.RESPONSE to "network_response_failed")) Fixture().apply {
+            network.probeError=NetworkFailure(stage,IOException("private fixture detail"))
+            controller.probe(tv) {}
+            complete()
+            check(notices.last().key==key&&notices.last().detail==null) { "Network stage was not mapped safely: $stage" }
+            controller.destroy()
+        }
+        println("PASS: independent mobile scenarios: draft preservation, no replay, address/save errors, pin rejection, staged network diagnostics, stale discovery, destroyed callbacks, cancellation before delayed/failed discovery shutdown, idempotent destruction, unpair and confirmed pairing")
     }
 }

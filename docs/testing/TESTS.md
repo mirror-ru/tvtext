@@ -1,5 +1,15 @@
 # TVText test report
 
+## Local refactor, protocol, build-cache and diagnostics checks — 16 November 2026
+
+- The mobile composer now scrolls immediately to keep the complete text card visible when the keyboard opens. The updated mobile APK passed build and signature verification; the instrumentation assertion compiled, but could not run because no emulator is installed.
+- Reorganized the test tree by product and layer without removing or rewriting scenarios; see the [test map](../../tests/README.md) ([Russian](../../tests/README.ru.md)).
+- `test.ps1` passed after the folder move: tooling/cache regressions, Windows DPI/theme/pairing/list/dialog UI, Windows-to-TV TLS integration, receiver core tests, and shared protocol vectors. Results: `build/test-943a75e5c1c7484b8ff32fc2edca454e/`.
+- `test-mobile.ps1` passed from the reorganized paths: JVM/controller/TLS suite and the same protocol vectors. Results: `build/mobile-test-32e5ff8c349846278dff12ebccbc06af/`.
+- `build.ps1 -Target All` built the TV APK, mobile APK, and EXE. The second Android build reported a compile-cache hit for both targets and still repackaged and verified both APKs.
+- Android UI instrumentation was not installed or run because `adb devices` listed no emulator. TV Java tests, the external input-field fixture, and mobile instrumentation sources all compiled from the new paths. Both Android apps compiled, shrank, packaged and passed APK signature verification.
+- Protocol format and shared test vectors: [TVText wire protocol](PROTOCOL.md) ([Russian](PROTOCOL.ru.md)). No GitHub push or release was made.
+
 ## Local version 2.0.10 rebuild — 27 October 2026
 
 - All three applications were built under `outputs/TVText-2.0.10/`: both APKs use version 2.0.10 / code 30; Windows uses 2.0.10.0. The output contains only two APKs, the EXE and its configuration file.
@@ -214,7 +224,7 @@ The tests cover:
 - TV selection, keyboard navigation, accessibility, pairing/re-pairing, rename, RU/EN switching, Enter/Shift+Enter, draft preservation, send-state routing, and no idle status polling;
 - Windows layout at 96 and 120 DPI plus 100–200% programmatic scaling, 0/1/2/3/9 TVs, long names, the three-row TV list, and the three-line editor.
 
-The TV accessibility fixture is under `tests/android-tv/fixture/`. It is a controlled Android field used to check insertion behavior; it is not a third-party TV application.
+The TV accessibility fixture is under `tests/android-tv/fixtures/`. It is a controlled Android field used to check insertion behavior; it is not a third-party TV application.
 
 ## Mobile coverage
 

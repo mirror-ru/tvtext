@@ -72,6 +72,30 @@ class MobileDeviceTests : Instrumentation() {
     private fun idle() = waitUntil { controller().busy==false }
     private fun input() = view("text-input") as EditText
     private fun draft(value: String) = ui { input().setText(value) }
+    private fun imeVisible(): Boolean {
+        if(android.os.Build.VERSION.SDK_INT>=30)
+            return activity.window.decorView.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime())==true
+        val frame=Rect();activity.window.decorView.getWindowVisibleDisplayFrame(frame)
+        val screenHeight=maxOf(activity.window.decorView.rootView.height,activity.resources.displayMetrics.heightPixels)
+        return screenHeight-frame.bottom>screenHeight/6
+    }
+    private fun checkInputVisibleWithKeyboard() {
+        ui {
+            input().requestFocus()
+            activity.getSystemService(InputMethodManager::class.java).showSoftInput(input(),InputMethodManager.SHOW_IMPLICIT)
+        }
+        waitUntil {
+            if(!imeVisible())return@waitUntil false
+            val frame=Rect();activity.window.decorView.getWindowVisibleDisplayFrame(frame)
+            val location=IntArray(2);input().getLocationOnScreen(location)
+            val cardLocation=IntArray(2);view("text-card").getLocationOnScreen(cardLocation)
+            location[1]>=frame.top&&location[1]+input().height<=frame.bottom&&
+                cardLocation[1]>=frame.top&&cardLocation[1]+view("text-card").height<=frame.bottom
+        }
+        ui { check(imeVisible()) }
+        ui { activity.getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(input().windowToken,0) }
+        waitUntil { !imeVisible() }
+    }
     private fun dialog() = (field("dialogs") as SenderDialogs).current ?: error("Missing dialog")
     private fun caption(id:String) = view("tv-$id").findViewWithTag<TextView>("pair-label")
     private fun legacyProfiles(values:List<Tv>):ByteArray {
@@ -233,6 +257,7 @@ class MobileDeviceTests : Instrumentation() {
                         motion(row,MotionEvent.ACTION_CANCEL,row.width/2f,row.height/2f,start)
                     }
                     check(field("selectedId")==a.id && input().hasFocus() && input().text.toString()=="Черновик для первого ТВ") { "Cancelled touch cannot switch the recipient or editor focus" }
+                    checkInputVisibleWithKeyboard()
                     click("tv-${b.id}")
                     check(field("selectedId")==b.id && !input().hasFocus()) { "First tap selects a paired TV without focusing the editor" }
                     ui {

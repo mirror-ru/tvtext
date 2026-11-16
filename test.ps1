@@ -13,9 +13,10 @@ $version = Read-ProjectVersion
 if ($Shrink) { $r8Tools = Resolve-AndroidBuildTools $Sdk }
 $run = Join-Path $PSScriptRoot ('build\test-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $run | Out-Null
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'tests\shared\protocol\v1-vectors.txt') -Destination (Join-Path $run 'protocol-v1-vectors.txt')
 $java = $jvm.Java
 $testJar = Join-Path $run 'core-tests.jar'
-$kotlinTests = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tests\android-tv') -Filter '*.kt' | ForEach-Object FullName)
+$kotlinTests = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tests\android-tv\core') -Filter '*.kt' -Recurse | ForEach-Object FullName)
 Invoke-Checked $java (@('-cp',(Join-Path $Kotlin 'lib\*'),'org.jetbrains.kotlin.cli.jvm.K2JVMCompiler','-no-reflect','-no-stdlib','-jvm-target','1.8','-classpath',(Join-Path $Kotlin 'lib\kotlin-stdlib.jar'),'-include-runtime','-kotlin-home',$Kotlin,'-d',$testJar,(Join-Path $PSScriptRoot 'android-tv\src\com\tvtext\app\Protocol.kt'),(Join-Path $PSScriptRoot 'android-tv\src\com\tvtext\app\ReceiverStatus.kt')) + $kotlinTests)
 if($Shrink) {
     $r8 = Get-Item -LiteralPath $r8Tools
@@ -25,8 +26,8 @@ if($Shrink) {
 }
 $metadata = Write-WindowsVersionFiles $run $version
 $testExe = Join-Path $run 'ClientTests.exe'
-$csharp = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'windows') -Filter '*.cs' | ForEach-Object FullName)
-$csharp += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tests\windows') -Filter '*.cs' | ForEach-Object FullName)
+$csharp = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'windows') -Filter '*.cs' -Recurse | ForEach-Object FullName)
+$csharp += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tests\windows') -Filter '*.cs' -Recurse | ForEach-Object FullName)
 Invoke-Checked $csc (@('/nologo','/target:exe','/main:ClientTests','/codepage:65001',('/out:'+$testExe),'/r:System.dll','/r:System.Core.dll','/r:System.Drawing.dll','/r:System.Windows.Forms.dll','/r:System.Security.dll',$metadata.AssemblyInfo) + $csharp)
 Invoke-Checked $testExe @('dpi-layout')
 Invoke-Checked $testExe @('connection-save')
@@ -43,7 +44,7 @@ $details = Join-Path $run 'fixture-details.txt'
 $done = Join-Path $run 'fixture-done.txt'
 $log = Join-Path $run 'server.log'
 $err = Join-Path $run 'server-error.log'
-$serverArgs = @('-cp', ('"'+$testJar+'"'), 'com.tvtext.app.CoreTests', ('"'+$fixture+'"'), ('"'+$details+'"'), ('"'+$done+'"'))
+$serverArgs = @('-cp', ('"'+$testJar+'"'), 'com.tvtext.app.CoreTests', ('"'+$fixture+'"'), ('"'+$details+'"'), ('"'+$done+'"'), ('"'+(Join-Path $run 'protocol-v1-vectors.txt')+'"'))
 $server = Start-Process -FilePath $java -ArgumentList $serverArgs -WindowStyle Hidden -PassThru -RedirectStandardOutput $log -RedirectStandardError $err
 # Retain the process handle while it is alive: Windows cannot reliably retrieve
 # ExitCode after PowerShell's HasExited polling closes an uncached handle.

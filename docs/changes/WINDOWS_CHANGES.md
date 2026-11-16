@@ -1,5 +1,15 @@
 # Windows EXE changes
 
+## 16 November 2026 — protocol vectors and transport diagnostics (local)
+
+- Added a shared golden request/response vector used by the Windows, Android TV and mobile protocol tests. Windows now uses a separately testable production request encoder, so the test checks exact bytes rather than only client/server agreement.
+- Classified connection, TLS and response-stage failures with safe localized messages. Error copy does not include the TV address or credential material; uncertain text delivery remains explicitly treated as unconfirmed.
+- Grouped Windows profile tests, transport/workflow tests, UI tests and their shared runner under `core/`, `integration/`, `ui/`, and `runner/` without reducing the executed suite.
+
+## 16 November 2026 — main window construction refactor (local)
+
+- Split the main form constructor into layout, event wiring, and initial-state setup. Extracted the header, TV list card, text editor, and footer into focused builders. Event hookups are grouped by animation, buttons, text input, and TV selection; control order, dimensions, and behavior are unchanged.
+
 ## 27 October 2026 — local version 2.0.10 rebuild
 
 - Updated the shared version to 2.0.10 / Windows 2.0.10.0, including the current address recovery and multi-window profile preservation fixes. Functional results for those changes are recorded in the test report.

@@ -1,0 +1,5 @@
+# Shared golden vectors for the TVText v1 binary protocol
+# request: command=3, credential="k", id="", text="AЖ😀\n"
+request=000000170103000000016B000000000000000841D096F09F98800A
+# response: code=0, ready=true, message="OK", token="t", target="app", deviceId=""
+response=00000019010001000000024F4B00000001740000000361707000000000

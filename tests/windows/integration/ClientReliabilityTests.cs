@@ -14,7 +14,19 @@ internal static class ClientReliabilityTests
     private static void Check(bool value,string message){if(!value)throw new Exception(message);}
     internal static void Run(string folder)
     {
-        Endpoints();Frames();Profiles(folder);Timeouts();DiscoveryCancellation();
+        Endpoints();Frames();ProtocolVectors(folder);Profiles(folder);Timeouts();DiscoveryCancellation();
+    }
+    private static byte[] Hex(string value)
+    {byte[] bytes=new byte[value.Length/2];for(int i=0;i<bytes.Length;i++)bytes[i]=Convert.ToByte(value.Substring(i*2,2),16);return bytes;}
+    private static void ProtocolVectors(string folder)
+    {
+        string request=null,response=null;
+        foreach(string line in File.ReadAllLines(Path.Combine(folder,"protocol-v1-vectors.txt")))
+        {if(line.StartsWith("request="))request=line.Substring(8).Trim();if(line.StartsWith("response="))response=line.Substring(9).Trim();}
+        Check(request!=null&&response!=null,"shared protocol vectors exist");
+        Check(BitConverter.ToString(Client.EncodeRequest(3,"k","","AЖ😀\n")).Replace("-","")==request,"C# request matches shared golden bytes");
+        Reply parsed=Client.ReadReply(new MemoryStream(Hex(response)));
+        Check(parsed.Code==0&&parsed.Ready&&parsed.Message=="OK"&&parsed.Token=="t"&&parsed.Target=="app"&&parsed.DeviceId=="","C# parses shared response bytes");
     }
     internal static int ProfileWriter(string file)
     {
@@ -71,7 +83,15 @@ internal static class ClientReliabilityTests
         {bool rejected=false;try{Client.ReadReply(new MemoryStream(invalid));}catch(IOException){rejected=true;}Check(rejected,"malformed frame must fail");}
         bool badUnicode=false;try{Client.Exchange("127.0.0.1:1",new string('A',64),3,"token",Guid.NewGuid().ToString(),"\ud800");}catch(EncoderFallbackException){badUnicode=true;}Check(badUnicode,"invalid UTF-16 rejected before connection");
         bool wrongId=false;try{Client.VerifyIdentity(new Reply{Code=0,DeviceId=Guid.NewGuid().ToString()},new Connection{DeviceId=DiscoveryTests.FixtureId});}catch(System.Security.Authentication.AuthenticationException){wrongId=true;}Check(wrongId,"reply identity must match saved TV");
-        Console.WriteLine("PASS: malformed replies, invalid UTF-16 and mismatched TV identity rejected");
+        System.Reflection.MethodInfo errorText=typeof(MainForm).GetMethod("ErrorText",System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic);
+        foreach(NetworkStage stage in new[]{NetworkStage.Connect,NetworkStage.Tls,NetworkStage.Response})
+        {
+            string message=(string)errorText.Invoke(null,new object[]{new NetworkFailure(stage,new IOException("private fixture detail")),false});
+            Check(message.Length>0&&!message.Contains("private fixture detail")&&!message.Contains("127.0.0.1"),"network diagnostics must be localized and omit raw transport details");
+        }
+        string uncertain=(string)errorText.Invoke(null,new object[]{new NetworkFailure(NetworkStage.Response,new IOException("fixture")),true});
+        Check(uncertain==UiText.T("send_no_confirmation"),"response failure during send must remain an uncertain-delivery warning");
+        Console.WriteLine("PASS: malformed replies, invalid UTF-16, mismatched TV identity and safe staged transport diagnostics rejected");
     }
     private static void Profiles(string folder)
     {

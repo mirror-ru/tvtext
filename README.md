@@ -73,7 +73,7 @@ For the real Android UI/instrumentation suite, pass an explicitly named isolated
   -AppApk '.\dist\TVText-Mobile-2.0.10.apk'
 ```
 
-Test sources are grouped by target: `tests/android-tv/` contains TV engine and accessibility-fixture checks, `tests/android-mobile/` contains phone/tablet checks, and `tests/windows/` contains Windows client and layout checks. The scripts use local TLS fixtures on `127.0.0.1`; they do not use saved TV credentials or an external network.
+Test sources are grouped first by target, then by test layer (`core`, `integration`, `ui`/`instrumentation`, and `fixtures`). Shared protocol vectors and build-tool checks have their own folders. See [tests/README.md](tests/README.md) for the map. The scripts use local TLS fixtures on `127.0.0.1`; they do not use saved TV credentials or an external network.
 
 The suite covers framing and UTF-8 limits, pairing expiry and lockout, certificate pinning, token revocation, idempotency, cancellation and deadlines, IPv4/IPv6 handling, mDNS resource cleanup, DPAPI and encrypted profile storage, Windows DPI/layout and keyboard routing, mobile NSD/Keystore storage, rotation, draft preservation, and multi-TV isolation. Device tests run only on an explicitly named emulator.
 
@@ -101,9 +101,10 @@ docs/images/           README screenshots
 docs/changes/          platform change logs
 docs/guides/           user guides
 docs/testing/          test documentation
-tests/android-tv/      TV engine and accessibility fixture tests
-tests/android-mobile/  phone/tablet tests
-tests/windows/         Windows client and layout tests
+tests/android-tv/      TV core, instrumentation, and input-field fixture
+tests/android-mobile/  mobile core, instrumentation, and TLS fixture
+tests/windows/         Windows core, integration, UI, and runner
+tests/shared/          protocol compatibility vectors
 tests/tooling/         build and artifact consistency checks
 scripts/               shared build/test helpers
 version.json           application version and Android version code
