@@ -1,5 +1,9 @@
 # Windows EXE changes
 
+## 17 November 2026 — local version 2.0.12 build
+
+- Updated the shared version to 2.0.12 and rebuilt the Windows executable. No Windows runtime changes in this version.
+
 ## 16 November 2026 — re-review split Windows transport (local)
 
 - Restored the `System` namespace import required by the separated connection resolver. The complete Windows build and Windows/TV regression suite passed.

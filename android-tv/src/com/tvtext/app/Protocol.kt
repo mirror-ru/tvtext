@@ -92,7 +92,10 @@ object Protocol {
 }
 
 class BridgeEngine(private val store: Store, private val target: Target, private val clock: () -> Long, private val deviceId: String = "") {
-    companion object { const val MAX_TOKENS = 100 }
+    companion object {
+        const val MAX_TOKENS = 100
+        private const val DUPLICATE_WAIT_MILLIS = 3000L
+    }
     interface Store {
         fun loadToken(): String
         fun saveToken(token: String)
@@ -115,7 +118,14 @@ class BridgeEngine(private val store: Store, private val target: Target, private
     private var generation = 0L
     private val requestId = Regex("[a-zA-Z0-9-]{16,64}")
     private data class Recent(val textHash: ByteArray, val response: Protocol.Response)
+    private class Pending(val textHash: ByteArray) {
+        val completed = CountDownLatch(1)
+        @Volatile var response: Protocol.Response? = null
+        fun complete(value: Protocol.Response) { response = value; completed.countDown() }
+    }
     private val recent = linkedMapOf<String, Recent>()
+    private val inFlight = mutableMapOf<String, Pending>()
+    private val requestLock = Any()
 
     @Synchronized fun openPairing(): String {
         pin = String.format(Locale.ROOT, "%08d", random.nextInt(100000000))
@@ -161,24 +171,70 @@ class BridgeEngine(private val store: Store, private val target: Target, private
         val textBytes = r.text.toByteArray(Charsets.UTF_8)
         if (textBytes.size > Protocol.MAX_TEXT)
             return Protocol.Response(Protocol.BAD_REQUEST, "Пустой текст, неверная команда или слишком длинная строка.")
-        // Never hold the engine monitor while waiting for Android's main thread.
-        synchronized(recent) {
-            val key = r.credential + ":" + r.id
-            val textHash = MessageDigest.getInstance("SHA-256").digest(textBytes)
+        val key = r.credential + ":" + r.id
+        val textHash = MessageDigest.getInstance("SHA-256").digest(textBytes)
+        // Reserve the request ID briefly. Never keep the cache lock while
+        // waiting for Android's main thread to perform the actual insertion.
+        var pending: Pending? = null
+        var ownsRequest = false
+        synchronized(requestLock) {
             recent[key]?.let {
                 return if (MessageDigest.isEqual(textHash, it.textHash)) it.response
                 else Protocol.Response(Protocol.BAD_REQUEST, "Идентификатор запроса уже использован для другого текста.")
             }
-            synchronized(this) {
-                if (!enabled || generation != acceptedGeneration || !tokens.any { equal(it, acceptedCredential) })
-                    return Protocol.Response(Protocol.AUTH, "Подключение отозвано на ТВ.")
+            inFlight[key]?.let { active ->
+                if (!MessageDigest.isEqual(textHash, active.textHash))
+                    return Protocol.Response(Protocol.BAD_REQUEST, "Идентификатор запроса уже использован для другого текста.")
+                pending = active
+            } ?: run {
+                pending = Pending(textHash)
+                inFlight[key] = pending!!
+                ownsRequest = true
             }
+        }
+        val request = pending!!
+        if (!ownsRequest) {
+            return try {
+                if (request.completed.await(DUPLICATE_WAIT_MILLIS, TimeUnit.MILLISECONDS))
+                    request.response ?: uncertainInsertion()
+                else uncertainInsertion()
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+                uncertainInsertion()
+            }
+        }
+        val stillAuthorized = synchronized(this) {
+            enabled && generation == acceptedGeneration && tokens.any { equal(it, acceptedCredential) }
+        }
+        if (!stillAuthorized) {
+            val denied = Protocol.Response(Protocol.AUTH, "Подключение отозвано на ТВ.")
+            synchronized(requestLock) {
+                if (inFlight[key] === request) inFlight.remove(key)
+                request.complete(denied)
+            }
+            return denied
+        }
+        try {
             val result = target.insert(r.text, authorized).copy(deviceId = deviceId)
-            recent[key] = Recent(textHash, result)
-            if (recent.size > 128) recent.remove(recent.keys.first())
+            synchronized(requestLock) {
+                if (inFlight[key] === request) inFlight.remove(key)
+                recent[key] = Recent(textHash, result)
+                if (recent.size > 128) recent.remove(recent.keys.first())
+                request.complete(result)
+            }
             return result
+        } catch (error: Throwable) {
+            synchronized(requestLock) {
+                if (inFlight[key] === request) inFlight.remove(key)
+                request.complete(uncertainInsertion())
+            }
+            throw error
         }
     }
+    private fun uncertainInsertion() = Protocol.Response(
+        Protocol.UNCERTAIN,
+        "Нет подтверждения. Проверьте текст на ТВ перед повтором.",
+    )
     private fun pair(provided: String): Protocol.Response {
         if (pin.isEmpty() || clock() >= pairUntil || attempts >= 10)
             return Protocol.Response(Protocol.PAIR_CLOSED, "На ТВ нажмите «Подключить новое устройство», затем введите новый код.")

@@ -1,5 +1,14 @@
 # Android phone/tablet changes
 
+## 17 November 2026 — local version 2.0.12 build
+
+- Updated the shared version to 2.0.12 / Android code 32 and rebuilt the signed phone/tablet APK.
+
+## 17 November 2026 — extract transient device messages (local)
+
+- Moved per-device and device-list message state out of `MainActivity` into `DeviceMessages`. The Activity still chooses localized fallback text and renders the screen; message storage and clearing are now a separate responsibility.
+- Mobile core/TLS tests and the complete local app build passed for this change.
+
 ## 16 November 2026 — re-review of screen extraction (local)
 
 - Fixed component visibility and callback ownership found by compiling the complete app. Kept the initial content focus request after the screen is attached, matching the previous Activity behavior.

@@ -1,5 +1,15 @@
 # Android TV changes
 
+## 17 November 2026 — local version 2.0.12 build
+
+- Updated the shared version to 2.0.12 / Android code 32 and built the signed TV APK. Request deduplication keeps the first insertion result, with a bounded wait for concurrent duplicates.
+
+## 17 November 2026 — request synchronization review (local)
+
+- Split recent-request caching from in-flight insertion: request IDs are reserved under a short lock, while the potentially blocking input operation runs outside it. Concurrent duplicates wait up to three seconds for the same result, then receive the existing uncertain-delivery response without triggering a second insertion.
+- The API 33+ accessibility service exposes `AccessibilityInputConnection.commitText()` as `void`; it cannot report the `Boolean` result from the separate `InputConnection` API. A direct Boolean check is therefore unavailable on the TV's supported insertion path.
+- TV/Windows core tests and the complete local app build passed after reverting the unavailable Boolean check.
+
 ## 16 November 2026 — re-review of main-screen components (local)
 
 - Matched the pairing timer's `Long` type and reset the devices button's accessibility description when special accessibility is off. The complete application build and Windows/TV core regression suite passed; device UI instrumentation was unavailable because the local ADB server could not start.

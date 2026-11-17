@@ -34,9 +34,7 @@ class MainActivity : Activity() {
     private val storageHealthy get() = controller.storageHealthy
     private val destroyed get() = controller.destroyed
     private val sending get() = controller.sending
-    private data class DeviceMessage(val key: String, val error: Boolean = false, val detail: String? = null)
-    private val deviceMessages = mutableMapOf<String, DeviceMessage>()
-    private var listMessage: DeviceMessage? = null
+    private val messages = DeviceMessages()
     private var refreshAnimation: ObjectAnimator? = null
     private lateinit var screen: SenderScreen
     private var keyboardViewport: KeyboardViewport? = null
@@ -239,9 +237,9 @@ class MainActivity : Activity() {
             values,
             selectedId,
             ::paired,
-            { tv -> deviceMessages[tv.id]?.let(::messageText) ?: text(if (paired(tv)) "paired" else "not_paired") },
-            listMessage?.let(::messageText).orEmpty(),
-            listMessage?.error == true,
+            { tv -> messageText(messages.forDevice(tv.id, DeviceMessage(if (paired(tv)) "paired" else "not_paired"))) },
+            messages.listMessage()?.let(::messageText).orEmpty(),
+            messages.listMessage()?.error == true,
         )
         updateControls()
     }
@@ -274,19 +272,12 @@ class MainActivity : Activity() {
     private fun messageText(value: DeviceMessage) = value.detail?.let { text(value.key, it) } ?: text(value.key)
 
     private fun message(key: String, error: Boolean = false, target: String = selectedId, detail: String? = null) {
-        val value = DeviceMessage(key, error, detail)
-        if (target.isNotEmpty() && choices().any { it.id == target }) deviceMessages[target] = value
-        else listMessage = value
+        messages.set(DeviceMessage(key, error, detail), target, choices().mapTo(mutableSetOf()) { it.id })
         renderDevices()
     }
 
     private fun clearMessage(target: String? = null) {
-        if (target == null) {
-            deviceMessages.clear()
-            listMessage = null
-        } else {
-            deviceMessages.remove(target)
-        }
+        messages.clear(target)
         renderDevices()
     }
 
